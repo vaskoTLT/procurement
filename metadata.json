@@ -1,0 +1,7 @@
+{
+  "name": "ShopMaster Telegram MiniApp",
+  "description": "A high-performance shopping list manager designed for Telegram WebApps, featuring quantity tracking (units/weight), price calculation, and n8n synchronization capabilities.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
