@@ -1,0 +1,59 @@
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: shoper-db
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-shoper_db}
+      POSTGRES_USER: ${POSTGRES_USER:-shoper_user}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-shoper_password_123}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-db:/docker-entrypoint-initdb.d
+    networks:
+      - shoper-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-shoper_user}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  backend:
+    build: ./backend
+    container_name: shoper-backend
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: ${POSTGRES_DB:-shoper_db}
+      POSTGRES_USER: ${POSTGRES_USER:-shoper_user}
+      DB_PASSWORD: ${DB_PASSWORD:-shoper_password_123}
+      NODE_ENV: production
+      PORT: 3002
+    ports:
+      - "3002:3002"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - shoper-network
+    restart: unless-stopped
+
+  frontend:
+    build: ./frontend
+    container_name: smart-shopping-list
+    environment:
+      VITE_API_URL: /api
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    networks:
+      - shoper-network
+    restart: unless-stopped
+
+networks:
+  shoper-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
