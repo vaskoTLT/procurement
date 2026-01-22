@@ -1,0 +1,7 @@
+{
+  "name": "Smart Shopping List",
+  "description": "A sophisticated shopping list manager designed for Telegram WebApps, featuring multiple lists, unit management, and spending tracking.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
