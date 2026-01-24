@@ -1,3 +1,7 @@
+-- Создание пользователя (если не существует)
+CREATE USER IF NOT EXISTS procurement_user WITH PASSWORD 'procurement_password_123';
+ALTER ROLE procurement_user WITH LOGIN;
+
 -- Создание таблицы users
 CREATE TABLE IF NOT EXISTS users (
     id SERIAL PRIMARY KEY,
