@@ -1,0 +1,17 @@
+# Тест 1: Создать список
+curl -k -X POST -H "Host: procurement.fros-ty.com" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"Продукты на неделю"}' \
+  https://localhost/api/lists
+
+# Тест 2: Получить все списки
+curl -k -H "Host: procurement.fros-ty.com" https://localhost/api/lists
+
+# Тест 3: Добавить товар в список
+curl -k -X POST -H "Host: procurement.fros-ty.com" \
+  -H "Content-Type: application/json" \
+  -d '{"list_id":1,"name":"Молоко","quantity":1,"unit":"л","price":80}' \
+  https://localhost/api/items
+
+# Тест 4: Получить товары списка
+curl -k -H "Host: procurement.fros-ty.com" https://localhost/api/items/list/1

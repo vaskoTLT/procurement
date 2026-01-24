@@ -5,20 +5,18 @@ const listsRouter = require('./routes/lists');
 const itemsRouter = require('./routes/items');
 
 const app = express();
-const port = process.env.PORT || 3000;
+const port = process.env.PORT || 3002;
 
 // Trust proxy (Traefik)
 app.set('trust proxy', true);
 
-// CORS configuration for Traefik
+// CORS configuration
 const corsOptions = {
   origin: function (origin, callback) {
-    // Allow requests from the same domain (Traefik will handle the request)
-    // Also allow requests without origin (mobile apps, curl requests)
     if (!origin || origin.includes('procurement.fros-ty.com') || origin.includes('localhost')) {
       callback(null, true);
     } else {
-      callback(null, true); // Allow all origins for now, can be restricted later
+      callback(null, true);
     }
   },
   credentials: true,
@@ -104,6 +102,7 @@ async function startServer() {
       console.log(`🚀 Сервер запущен на порту ${port}`);
       console.log(`📊 Health check: http://localhost:${port}/api/health`);
       console.log(`📊 DB test: http://localhost:${port}/api/db-test`);
+      console.log(`📊 Lists API: http://localhost:${port}/api/lists`);
     });
   } catch (error) {
     console.error('❌ Не удалось запустить сервер:', error.message);

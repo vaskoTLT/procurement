@@ -18,11 +18,23 @@ interface StatsViewProps {
   lists: ShoppingList[];
 }
 
+// Функция расчета стоимости с учетом количества
+const calculateItemTotal = (item: any) => {
+  return item.price * item.quantity;
+};
+
 export const StatsView: React.FC<StatsViewProps> = ({ lists }) => {
   const chartData = useMemo(() => {
     return lists.map(list => {
-      const spent = list.items.filter(i => i.isBought).reduce((sum, i) => sum + i.price, 0);
-      const planned = list.items.filter(i => !i.isBought).reduce((sum, i) => sum + i.price, 0);
+      // ИСПРАВЛЕНО: Учитываем количество при расчете суммы
+      const spent = list.items
+        .filter(i => i.isBought)
+        .reduce((sum, i) => sum + calculateItemTotal(i), 0);
+      
+      const planned = list.items
+        .filter(i => !i.isBought)
+        .reduce((sum, i) => sum + calculateItemTotal(i), 0);
+      
       return {
         name: list.name.length > 8 ? list.name.substring(0, 8) + '..' : list.name,
         spent,
@@ -35,13 +47,17 @@ export const StatsView: React.FC<StatsViewProps> = ({ lists }) => {
 
   const totalSpent = useMemo(() => 
     lists.reduce((sum, list) => 
-      sum + list.items.filter(i => i.isBought).reduce((s, i) => s + i.price, 0)
+      sum + list.items
+        .filter(i => i.isBought)
+        .reduce((s, i) => s + calculateItemTotal(i), 0)
     , 0)
   , [lists]);
 
   const totalPlanned = useMemo(() => 
     lists.reduce((sum, list) => 
-      sum + list.items.filter(i => !i.isBought).reduce((s, i) => s + i.price, 0)
+      sum + list.items
+        .filter(i => !i.isBought)
+        .reduce((s, i) => s + calculateItemTotal(i), 0)
     , 0)
   , [lists]);
 
@@ -68,7 +84,9 @@ export const StatsView: React.FC<StatsViewProps> = ({ lists }) => {
             </div>
             <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Куплено на</p>
           </div>
-          <p className="text-xl font-black text-green-600 mt-1">{totalSpent.toLocaleString()} ₽</p>
+          <p className="text-xl font-black text-green-600 mt-1">
+            {totalSpent.toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ₽
+          </p>
         </div>
         <div className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex flex-col justify-between">
           <div>
@@ -77,7 +95,9 @@ export const StatsView: React.FC<StatsViewProps> = ({ lists }) => {
             </div>
             <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">В плане еще</p>
           </div>
-          <p className="text-xl font-black text-gray-800 mt-1">{totalPlanned.toLocaleString()} ₽</p>
+          <p className="text-xl font-black text-gray-800 mt-1">
+            {totalPlanned.toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ₽
+          </p>
         </div>
       </div>
 
@@ -97,7 +117,7 @@ export const StatsView: React.FC<StatsViewProps> = ({ lists }) => {
         </div>
         <div className="flex justify-between mt-2 text-[10px] text-gray-400 font-bold uppercase">
           <span>0 ₽</span>
-          <span>{(totalSpent + totalPlanned).toLocaleString()} ₽</span>
+          <span>{(totalSpent + totalPlanned).toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ₽</span>
         </div>
       </div>
 
@@ -113,6 +133,7 @@ export const StatsView: React.FC<StatsViewProps> = ({ lists }) => {
               <Tooltip 
                 cursor={{ fill: '#f9fafb' }}
                 contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                formatter={(value: number) => [`${value.toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ₽`, 'Сумма']}
               />
               <Bar dataKey="spent" name="Куплено" stackId="a" fill="#16a34a" radius={[0, 0, 0, 0]} />
               <Bar dataKey="planned" name="В плане" stackId="a" fill="#e5e7eb" radius={[4, 4, 0, 0]} />

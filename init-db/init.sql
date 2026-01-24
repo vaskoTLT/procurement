@@ -1,7 +1,3 @@
--- Создание пользователя (если не существует)
-CREATE USER IF NOT EXISTS procurement_user WITH PASSWORD 'procurement_password_123';
-ALTER ROLE procurement_user WITH LOGIN;
-
 -- Создание таблицы users
 CREATE TABLE IF NOT EXISTS users (
     id SERIAL PRIMARY KEY,
@@ -51,28 +47,3 @@ CREATE INDEX IF NOT EXISTS idx_lists_created_by ON shopping_lists(created_by);
 INSERT INTO users (username, telegram_id) 
 VALUES ('test_user', NULL)
 ON CONFLICT (username) DO NOTHING;
-
--- ПРАВА: Даем права на схему
-GRANT USAGE ON SCHEMA public TO procurement_user;
-
--- ПРАВА: Даем права на все таблицы (текущие и будущие)
-GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO procurement_user;
-GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO procurement_user;
-
--- ПРАВА: Устанавливаем права по умолчанию для новых таблиц
-ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO procurement_user;
-ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT USAGE, SELECT ON SEQUENCES TO procurement_user;
-
--- ПРАВА: Явно даем права на конкретные таблицы и последовательности
-GRANT SELECT, INSERT, UPDATE, DELETE ON users TO procurement_user;
-GRANT SELECT, INSERT, UPDATE, DELETE ON shopping_lists TO procurement_user;
-GRANT SELECT, INSERT, UPDATE, DELETE ON items TO procurement_user;
-GRANT SELECT, INSERT, UPDATE, DELETE ON list_participants TO procurement_user;
-
--- ПРАВА: На последовательности для генерирования ID
-GRANT USAGE ON SEQUENCE users_id_seq TO procurement_user;
-GRANT SELECT ON SEQUENCE users_id_seq TO procurement_user;
-GRANT USAGE ON SEQUENCE shopping_lists_id_seq TO procurement_user;
-GRANT SELECT ON SEQUENCE shopping_lists_id_seq TO procurement_user;
-GRANT USAGE ON SEQUENCE items_id_seq TO procurement_user;
-GRANT SELECT ON SEQUENCE items_id_seq TO procurement_user;

@@ -23,6 +23,11 @@ export const ListDetailView: React.FC<ListDetailViewProps> = ({ list, onUpdateLi
   const [newItemUnit, setNewItemUnit] = useState<Unit>(Unit.PCS);
   const [isAdding, setIsAdding] = useState(false);
 
+  // Расчет общей стоимости с учетом количества
+  const calculateItemTotal = (item: ShoppingItem) => {
+    return item.price * item.quantity;
+  };
+
   const addItem = async () => {
     if (!newItemName.trim()) return;
     
@@ -67,7 +72,7 @@ export const ListDetailView: React.FC<ListDetailViewProps> = ({ list, onUpdateLi
     const item = list.items.find(i => i.id === itemId);
     if (!item) return;
     
-    const priceStr = prompt(`Укажите стоимость для "${item.name}":`, item.price.toString());
+    const priceStr = prompt(`Укажите стоимость для "${item.name}" (за ${item.quantity} ${getUnitText(item.unit)}):`, item.price.toString());
     if (priceStr === null) return; // User cancelled
     
     const price = parseFloat(priceStr || '0');
@@ -104,9 +109,21 @@ export const ListDetailView: React.FC<ListDetailViewProps> = ({ list, onUpdateLi
   const pendingItems = list.items.filter(i => !i.isBought);
   const completedItems = list.items.filter(i => i.isBought);
   
-  const actualTotal = completedItems.reduce((sum, item) => sum + item.price, 0);
-  const estimatedTotal = list.items.reduce((sum, item) => sum + item.price, 0);
+  // ИСПРАВЛЕНО: Учитываем количество при расчете суммы
+  const actualTotal = completedItems.reduce((sum, item) => sum + calculateItemTotal(item), 0);
+  const estimatedTotal = list.items.reduce((sum, item) => sum + calculateItemTotal(item), 0);
   const progressPercent = list.items.length > 0 ? (completedItems.length / list.items.length) * 100 : 0;
+
+  const getUnitText = (unit: Unit): string => {
+    const unitMap: Record<Unit, string> = {
+      [Unit.PCS]: 'шт',
+      [Unit.KG]: 'кг',
+      [Unit.G]: 'г',
+      [Unit.L]: 'л',
+      [Unit.ML]: 'мл',
+    };
+    return unitMap[unit];
+  };
 
   return (
     <div className="space-y-6 pb-20">
@@ -115,9 +132,9 @@ export const ListDetailView: React.FC<ListDetailViewProps> = ({ list, onUpdateLi
         <div className="flex justify-between items-center relative z-10">
           <div>
             <p className="text-green-100 text-[10px] font-bold uppercase tracking-wider">Куплено на сумму</p>
-            <h2 className="text-3xl font-black">{actualTotal.toLocaleString()} ₽</h2>
+            <h2 className="text-3xl font-black">{actualTotal.toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ₽</h2>
             <p className="text-green-200 text-xs mt-1 font-medium">
-              Весь список: {estimatedTotal.toLocaleString()} ₽
+              Весь список: {estimatedTotal.toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ₽
             </p>
           </div>
           <div className="bg-white/20 p-3 rounded-full backdrop-blur-sm">
@@ -228,6 +245,9 @@ export const ListDetailView: React.FC<ListDetailViewProps> = ({ list, onUpdateLi
                   />
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-green-600 font-bold text-sm">₽</span>
                 </div>
+                <p className="text-[10px] text-gray-400 mt-1 ml-1">
+                  Общая стоимость для {newItemQty} {getUnitText(newItemUnit)}
+                </p>
               </div>
 
               <div className="flex gap-3 pt-4">
@@ -308,6 +328,9 @@ const ItemRow: React.FC<{ item: ShoppingItem, onToggle: () => void, onDelete: ()
     [Unit.ML]: 'мл',
   };
 
+  // Расчет общей стоимости товара
+  const itemTotal = item.price * item.quantity;
+
   return (
     <div className={`flex items-center gap-3 p-3 bg-white rounded-xl border border-gray-100 shadow-sm transition-all active:scale-[0.98] ${item.isBought ? 'bg-gray-50 border-transparent' : ''}`}>
       <button 
@@ -333,8 +356,13 @@ const ItemRow: React.FC<{ item: ShoppingItem, onToggle: () => void, onDelete: ()
         className={`flex flex-col items-end px-3 py-1.5 rounded-xl transition-all border ${item.isBought ? 'text-green-700 bg-green-50/50 border-green-100' : 'text-gray-700 bg-gray-50 border-gray-100 hover:border-green-200'}`}
       >
         <span className="text-xs font-black whitespace-nowrap">
-          {item.price > 0 ? `${item.price.toLocaleString()} ₽` : '0 ₽'}
+          {itemTotal > 0 ? `${itemTotal.toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ₽` : '0 ₽'}
         </span>
+        {item.quantity > 1 && (
+          <span className="text-[9px] text-gray-500 mt-0.5">
+            {item.price.toFixed(2)} ₽ × {item.quantity}
+          </span>
+        )}
       </button>
 
       <button onClick={(e) => { e.stopPropagation(); onDelete(); }} className="p-2 text-gray-300 hover:text-red-500 transition-colors">

@@ -1,30 +1,32 @@
-# Build stage for React app
-FROM node:18-alpine AS builder
+# Build stage
+FROM node:20-alpine AS builder
 
 WORKDIR /app
 
+# Копируем package.json и package-lock.json
 COPY package*.json ./
+
+# Устанавливаем зависимости (используем npm install вместо npm ci)
 RUN npm install
 
+# Копируем исходный код
 COPY . .
+
+# Собираем приложение
 RUN npm run build
 
-# Production stage with nginx
+# Production stage
 FROM nginx:alpine
 
-# Install curl for healthchecks
-RUN apk add --no-cache curl
-
-# Copy built app from builder stage
+# Копируем собранное приложение из builder stage
 COPY --from=builder /app/dist /usr/share/nginx/html
 
-# Copy nginx configuration
+# Копируем конфигурацию nginx
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 
-EXPOSE 80
+# Копируем info.html
+COPY info.html /usr/share/nginx/html/info.html
 
-# Health check for Docker/Traefik
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-  CMD curl -f http://localhost/health || exit 1
+EXPOSE 80
 
 CMD ["nginx", "-g", "daemon off;"]

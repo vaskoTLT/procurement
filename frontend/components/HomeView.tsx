@@ -8,6 +8,11 @@ interface HomeViewProps {
   onDeleteList: (id: string) => void;
 }
 
+// Функция расчета стоимости с учетом количества
+const calculateItemTotal = (item: any) => {
+  return item.price * item.quantity;
+};
+
 export const HomeView: React.FC<HomeViewProps> = ({ lists, onSelectList, onDeleteList }) => {
   if (lists.length === 0) {
     return (
@@ -26,8 +31,14 @@ export const HomeView: React.FC<HomeViewProps> = ({ lists, onSelectList, onDelet
       {lists.map((list) => {
         const totalItems = list.items.length;
         const boughtItems = list.items.filter(i => i.isBought).length;
-        const spentCost = list.items.reduce((sum, item) => sum + (item.isBought ? item.price : 0), 0);
-        const totalEstimated = list.items.reduce((sum, item) => sum + item.price, 0);
+        
+        // ИСПРАВЛЕНО: Учитываем количество при расчете суммы
+        const spentCost = list.items.reduce((sum, item) => 
+          sum + (item.isBought ? calculateItemTotal(item) : 0), 0);
+        
+        const totalEstimated = list.items.reduce((sum, item) => 
+          sum + calculateItemTotal(item), 0);
+        
         const progress = totalItems > 0 ? (boughtItems / totalItems) * 100 : 0;
 
         return (
@@ -65,13 +76,15 @@ export const HomeView: React.FC<HomeViewProps> = ({ lists, onSelectList, onDelet
                 </div>
                 {totalEstimated > spentCost && (
                   <p className="text-[10px] text-gray-400 font-bold ml-6 mt-0.5">
-                    Всего: {totalEstimated.toLocaleString()} ₽
+                    Всего: {totalEstimated.toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ₽
                   </p>
                 )}
               </div>
               <div className="text-right">
                 <p className="text-[10px] text-gray-400 uppercase tracking-wider font-bold">Потрачено</p>
-                <p className="text-lg font-black text-green-600">{spentCost.toLocaleString()} ₽</p>
+                <p className="text-lg font-black text-green-600">
+                  {spentCost.toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ₽
+                </p>
               </div>
             </div>
 

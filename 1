@@ -1,0 +1,18 @@
+# Полный тест
+echo "=== Тест 1: Health Check ==="
+curl -k -H "Host: procurement.fros-ty.com" https://localhost/api/health
+
+echo -e "\n=== Тест 2: Получить списки ==="
+curl -k -H "Host: procurement.fros-ty.com" https://localhost/api/lists
+
+echo -e "\n=== Тест 3: Создать список ==="
+curl -k -X POST -H "Host: procurement.fros-ty.com" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"Покупки на ужин"}' \
+  https://localhost/api/lists
+
+echo -e "\n=== Тест 4: Проверить созданный список ==="
+curl -k -H "Host: procurement.fros-ty.com" https://localhost/api/lists
+
+echo -e "\n=== Тест 5: Фронтенд доступен ==="
+curl -k https://procurement.fros-ty.com 2>/dev/null | grep -o "<title>[^<]*</title>"
