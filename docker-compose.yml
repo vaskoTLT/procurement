@@ -1,18 +1,18 @@
 services:
   postgres:
     image: postgres:15-alpine
-    container_name: shoper-db
+    container_name: procurement-db
     environment:
-      POSTGRES_DB: ${POSTGRES_DB:-shoper_db}
-      POSTGRES_USER: ${POSTGRES_USER:-shoper_user}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-shoper_password_123}
+      POSTGRES_DB: ${POSTGRES_DB:-procurement_db}
+      POSTGRES_USER: ${POSTGRES_USER:-procurement_user}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-procurement_password_123}
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./init-db:/docker-entrypoint-initdb.d
     networks:
-      - shoper-network
+      - procurement-internal
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-shoper_user}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-procurement_user}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -20,40 +20,55 @@ services:
 
   backend:
     build: ./backend
-    container_name: shoper-backend
+    container_name: procurement-backend
     environment:
       POSTGRES_HOST: postgres
       POSTGRES_PORT: 5432
-      POSTGRES_DB: ${POSTGRES_DB:-shoper_db}
-      POSTGRES_USER: ${POSTGRES_USER:-shoper_user}
-      DB_PASSWORD: ${DB_PASSWORD:-shoper_password_123}
+      POSTGRES_DB: ${POSTGRES_DB:-procurement_db}
+      POSTGRES_USER: ${POSTGRES_USER:-procurement_user}
+      DB_PASSWORD: ${DB_PASSWORD:-procurement_password_123}
       NODE_ENV: production
       PORT: 3002
-    ports:
-      - "3002:3002"
+      TRAEFIK_ENABLED: "true"
     depends_on:
       postgres:
         condition: service_healthy
     networks:
-      - shoper-network
+      - procurement-internal
+      - proxy
     restart: unless-stopped
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.procurement-backend.rule=Host(`${DOMAIN:-procurement.fros-ty.com}`) && PathPrefix(`/api`)"
+      - "traefik.http.routers.procurement-backend.entrypoints=websecure"
+      - "traefik.http.routers.procurement-backend.tls.certresolver=le"
+      - "traefik.http.services.procurement-backend.loadbalancer.server.port=3002"
+      - "traefik.http.middlewares.stripprefix.stripprefix.prefixes=/api"
+      - "traefik.http.routers.procurement-backend.middlewares=stripprefix@docker"
 
   frontend:
     build: ./frontend
-    container_name: smart-shopping-list
+    container_name: procurement-frontend
     environment:
       VITE_API_URL: /api
-    ports:
-      - "80:80"
     depends_on:
       - backend
     networks:
-      - shoper-network
+      - procurement-internal
+      - proxy
     restart: unless-stopped
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.procurement-frontend.rule=Host(`${DOMAIN:-procurement.fros-ty.com}`)"
+      - "traefik.http.routers.procurement-frontend.entrypoints=websecure"
+      - "traefik.http.routers.procurement-frontend.tls.certresolver=le"
+      - "traefik.http.services.procurement-frontend.loadbalancer.server.port=80"
 
 networks:
-  shoper-network:
+  procurement-internal:
     driver: bridge
+  proxy:
+    external: true
 
 volumes:
   postgres_data:
