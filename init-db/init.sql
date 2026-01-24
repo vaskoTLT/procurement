@@ -47,22 +47,32 @@ CREATE INDEX IF NOT EXISTS idx_items_list_id ON items(list_id);
 CREATE INDEX IF NOT EXISTS idx_items_is_bought ON items(is_bought);
 CREATE INDEX IF NOT EXISTS idx_lists_created_by ON shopping_lists(created_by);
 
--- Вставляем тестового пользователя
-INSERT INTO users (username) VALUES ('test_user')
+-- Вставляем тестового пользователя если его еще нет
+INSERT INTO users (username, telegram_id) 
+VALUES ('test_user', NULL)
 ON CONFLICT (username) DO NOTHING;
 
--- Выдаём права пользователю procurement_user
+-- ПРАВА: Даем права на схему
 GRANT USAGE ON SCHEMA public TO procurement_user;
-GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO procurement_user;
-GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO procurement_user;
 
--- Выдаём права на таблицы явно
+-- ПРАВА: Даем права на все таблицы (текущие и будущие)
+GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO procurement_user;
+GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO procurement_user;
+
+-- ПРАВА: Устанавливаем права по умолчанию для новых таблиц
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO procurement_user;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT USAGE, SELECT ON SEQUENCES TO procurement_user;
+
+-- ПРАВА: Явно даем права на конкретные таблицы и последовательности
 GRANT SELECT, INSERT, UPDATE, DELETE ON users TO procurement_user;
 GRANT SELECT, INSERT, UPDATE, DELETE ON shopping_lists TO procurement_user;
 GRANT SELECT, INSERT, UPDATE, DELETE ON items TO procurement_user;
 GRANT SELECT, INSERT, UPDATE, DELETE ON list_participants TO procurement_user;
 
--- Выдаём права на последовательности для ID
-GRANT USAGE, SELECT ON users_id_seq TO procurement_user;
-GRANT USAGE, SELECT ON shopping_lists_id_seq TO procurement_user;
-GRANT USAGE, SELECT ON items_id_seq TO procurement_user;
+-- ПРАВА: На последовательности для генерирования ID
+GRANT USAGE ON SEQUENCE users_id_seq TO procurement_user;
+GRANT SELECT ON SEQUENCE users_id_seq TO procurement_user;
+GRANT USAGE ON SEQUENCE shopping_lists_id_seq TO procurement_user;
+GRANT SELECT ON SEQUENCE shopping_lists_id_seq TO procurement_user;
+GRANT USAGE ON SEQUENCE items_id_seq TO procurement_user;
+GRANT SELECT ON SEQUENCE items_id_seq TO procurement_user;

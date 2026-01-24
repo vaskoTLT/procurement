@@ -72,66 +72,19 @@ app.get('/api/db-test', async (req, res) => {
 // Инициализация базы данных
 async function initializeDatabase() {
   try {
-    console.log('📊 Проверяем существующие таблицы...');
+    console.log('📊 Проверяем таблицы...');
     
     // Проверяем существование таблиц
     const tables = await db.query(`
       SELECT table_name 
       FROM information_schema.tables 
       WHERE table_schema = 'public'
+      ORDER BY table_name
     `);
     
-    console.log(`✅ Найдено таблиц: ${tables.rows.length}`);
-    
-    if (tables.rows.length === 0) {
-      console.log('🔄 Создаем таблицы...');
-      // Создаем простую схему
-      await db.query(`
-        CREATE TABLE IF NOT EXISTS users (
-          id SERIAL PRIMARY KEY,
-          username VARCHAR(50) UNIQUE NOT NULL,
-          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-      `);
-      
-      await db.query(`
-        CREATE TABLE IF NOT EXISTS shopping_lists (
-          id SERIAL PRIMARY KEY,
-          name VARCHAR(200) NOT NULL,
-          is_public BOOLEAN DEFAULT true,
-          created_by INTEGER REFERENCES users(id),
-          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-      `);
-      
-      await db.query(`
-        CREATE TABLE IF NOT EXISTS items (
-          id SERIAL PRIMARY KEY,
-          list_id INTEGER REFERENCES shopping_lists(id) ON DELETE CASCADE,
-          name VARCHAR(200) NOT NULL,
-          quantity NUMERIC(10,2) DEFAULT 1,
-          unit VARCHAR(10) DEFAULT 'pcs',
-          price NUMERIC(10,2) DEFAULT 0,
-          category VARCHAR(100),
-          is_bought BOOLEAN DEFAULT false,
-          added_by INTEGER REFERENCES users(id),
-          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-      `);
-      
-      // Создаем тестового пользователя
-      await db.query(`
-        INSERT INTO users (username) 
-        VALUES ('test_user')
-        ON CONFLICT (username) DO NOTHING
-      `);
-      
-      console.log('✅ База данных инициализирована');
-    }
+    console.log(`✅ Таблицы в БД: ${tables.rows.map(t => t.table_name).join(', ')}`);
   } catch (error) {
-    console.error('❌ Ошибка инициализации БД:', error.message);
+    console.error('❌ Ошибка проверки БД:', error.message);
   }
 }
 
