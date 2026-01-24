@@ -69,6 +69,16 @@ class ApiService {
     }
   }
 
+  async getItemsForList(listId: string): Promise<ShoppingItem[]> {
+    try {
+      const data = await this.fetch<{ success: boolean; items: any[] }>(`/items/list/${listId}`);
+      return data.success ? data.items.map(this.convertApiItem.bind(this)) : [];
+    } catch (error) {
+      console.error(`Error loading items for list ${listId}:`, error);
+      return [];
+    }
+  }
+
   async createList(name: string): Promise<ShoppingList> {
     const data = await this.fetch<{ success: boolean; list: any }>('/lists', {
       method: 'POST',

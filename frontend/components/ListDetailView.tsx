@@ -28,8 +28,7 @@ export const ListDetailView: React.FC<ListDetailViewProps> = ({ list, onUpdateLi
     
     try {
       const parsedPrice = parseFloat(newItemPrice);
-      const result = await apiService.createItem({
-        listId: list.id,
+      await apiService.createItem(list.id, {
         name: newItemName.trim(),
         quantity: newItemQty,
         unit: newItemUnit,
@@ -37,13 +36,14 @@ export const ListDetailView: React.FC<ListDetailViewProps> = ({ list, onUpdateLi
         isBought: false
       });
 
-      if (result.success) {
-        onUpdateList(result.list);
-        setNewItemName('');
-        setNewItemQty(1);
-        setNewItemPrice('');
-        setIsAdding(false);
-      }
+      setNewItemName('');
+      setNewItemQty(1);
+      setNewItemPrice('');
+      setIsAdding(false);
+      
+      // Reload items for this list
+      const items = await apiService.getItemsForList(list.id);
+      onUpdateList({ ...list, items });
     } catch (error) {
       console.error('Ошибка при добавлении товара:', error);
       alert('Не удалось добавить товар. Пожалуйста, попробуйте еще раз.');
@@ -51,14 +51,12 @@ export const ListDetailView: React.FC<ListDetailViewProps> = ({ list, onUpdateLi
   };
 
   const toggleItem = async (itemId: string) => {
-    const item = list.items.find(i => i.id === itemId);
-    if (!item) return;
-
     try {
-      const result = await apiService.toggleItem(itemId);
-      if (result.success) {
-        onUpdateList(result.list);
-      }
+      await apiService.toggleItem(itemId);
+      
+      // Reload items for this list
+      const items = await apiService.getItemsForList(list.id);
+      onUpdateList({ ...list, items });
     } catch (error) {
       console.error('Ошибка при изменении товара:', error);
       alert('Не удалось изменить товар. Пожалуйста, попробуйте еще раз.');
@@ -79,10 +77,11 @@ export const ListDetailView: React.FC<ListDetailViewProps> = ({ list, onUpdateLi
     }
 
     try {
-      const result = await apiService.updateItemPrice(itemId, price);
-      if (result.success) {
-        onUpdateList(result.list);
-      }
+      await apiService.updateItemPrice(itemId, price);
+      
+      // Reload items for this list
+      const items = await apiService.getItemsForList(list.id);
+      onUpdateList({ ...list, items });
     } catch (error) {
       console.error('Ошибка при обновлении цены:', error);
       alert('Не удалось обновить цену. Пожалуйста, попробуйте еще раз.');
@@ -91,10 +90,11 @@ export const ListDetailView: React.FC<ListDetailViewProps> = ({ list, onUpdateLi
 
   const deleteItem = async (itemId: string) => {
     try {
-      const result = await apiService.deleteItem(itemId);
-      if (result.success) {
-        onUpdateList(result.list);
-      }
+      await apiService.deleteItem(itemId);
+      
+      // Reload items for this list
+      const items = await apiService.getItemsForList(list.id);
+      onUpdateList({ ...list, items });
     } catch (error) {
       console.error('Ошибка при удалении товара:', error);
       alert('Не удалось удалить товар. Пожалуйста, попробуйте еще раз.');

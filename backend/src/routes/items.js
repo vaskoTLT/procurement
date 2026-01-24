@@ -24,7 +24,7 @@ router.post('/', async (req, res) => {
       unit,
       price,
       category
-    });
+    }, 1);
     
     res.json({ success: true, item });
   } catch (error) {

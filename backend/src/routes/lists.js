@@ -29,8 +29,8 @@ router.post('/', async (req, res) => {
   try {
     const { name, is_public = true } = req.body;
     const result = await db.query(
-      'INSERT INTO shopping_lists (name, is_public) VALUES ($1, $2) RETURNING *',
-      [name, is_public]
+      'INSERT INTO shopping_lists (name, is_public, created_by) VALUES ($1, $2, $3) RETURNING *',
+      [name, is_public, 1]
     );
     res.json({ success: true, list: result.rows[0] });
   } catch (error) {

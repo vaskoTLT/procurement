@@ -50,3 +50,19 @@ CREATE INDEX IF NOT EXISTS idx_lists_created_by ON shopping_lists(created_by);
 -- Вставляем тестового пользователя
 INSERT INTO users (username) VALUES ('test_user')
 ON CONFLICT (username) DO NOTHING;
+
+-- Выдаём права пользователю procurement_user
+GRANT USAGE ON SCHEMA public TO procurement_user;
+GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO procurement_user;
+GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO procurement_user;
+
+-- Выдаём права на таблицы явно
+GRANT SELECT, INSERT, UPDATE, DELETE ON users TO procurement_user;
+GRANT SELECT, INSERT, UPDATE, DELETE ON shopping_lists TO procurement_user;
+GRANT SELECT, INSERT, UPDATE, DELETE ON items TO procurement_user;
+GRANT SELECT, INSERT, UPDATE, DELETE ON list_participants TO procurement_user;
+
+-- Выдаём права на последовательности для ID
+GRANT USAGE, SELECT ON users_id_seq TO procurement_user;
+GRANT USAGE, SELECT ON shopping_lists_id_seq TO procurement_user;
+GRANT USAGE, SELECT ON items_id_seq TO procurement_user;
