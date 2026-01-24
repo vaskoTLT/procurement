@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { ShoppingList, ShoppingItem, Unit } from '../types';
+import { apiService } from '../services/apiService';
 import { 
   Plus, 
   Minus,
@@ -22,57 +23,82 @@ export const ListDetailView: React.FC<ListDetailViewProps> = ({ list, onUpdateLi
   const [newItemUnit, setNewItemUnit] = useState<Unit>(Unit.PCS);
   const [isAdding, setIsAdding] = useState(false);
 
-  const addItem = () => {
+  const addItem = async () => {
     if (!newItemName.trim()) return;
     
-    const parsedPrice = parseFloat(newItemPrice);
-    const newItem: ShoppingItem = {
-      id: Math.random().toString(36).substr(2, 9),
-      name: newItemName.trim(),
-      quantity: newItemQty,
-      unit: newItemUnit,
-      price: isNaN(parsedPrice) ? 0 : parsedPrice,
-      isBought: false
-    };
-
-    onUpdateList({
-      ...list,
-      items: [newItem, ...list.items]
-    });
-
-    setNewItemName('');
-    setNewItemQty(1);
-    setNewItemPrice('');
-    setIsAdding(false);
-  };
-
-  const toggleItem = (itemId: string) => {
-    onUpdateList({
-      ...list,
-      items: list.items.map(i => 
-        i.id === itemId ? { ...i, isBought: !i.isBought } : i
-      )
-    });
-  };
-
-  const editItemPrice = (itemId: string) => {
-    const item = list.items.find(i => i.id === itemId);
-    if (!item) return;
-    const priceStr = prompt(`Укажите стоимость для "${item.name}":`, item.price.toString());
-    const price = parseFloat(priceStr || '0');
-    if (!isNaN(price)) {
-      onUpdateList({
-        ...list,
-        items: list.items.map(i => i.id === itemId ? { ...i, price } : i)
+    try {
+      const parsedPrice = parseFloat(newItemPrice);
+      const result = await apiService.createItem({
+        listId: list.id,
+        name: newItemName.trim(),
+        quantity: newItemQty,
+        unit: newItemUnit,
+        price: isNaN(parsedPrice) ? 0 : parsedPrice,
+        isBought: false
       });
+
+      if (result.success) {
+        onUpdateList(result.list);
+        setNewItemName('');
+        setNewItemQty(1);
+        setNewItemPrice('');
+        setIsAdding(false);
+      }
+    } catch (error) {
+      console.error('Ошибка при добавлении товара:', error);
+      alert('Не удалось добавить товар. Пожалуйста, попробуйте еще раз.');
     }
   };
 
-  const deleteItem = (itemId: string) => {
-    onUpdateList({
-      ...list,
-      items: list.items.filter(i => i.id !== itemId)
-    });
+  const toggleItem = async (itemId: string) => {
+    const item = list.items.find(i => i.id === itemId);
+    if (!item) return;
+
+    try {
+      const result = await apiService.toggleItem(itemId);
+      if (result.success) {
+        onUpdateList(result.list);
+      }
+    } catch (error) {
+      console.error('Ошибка при изменении товара:', error);
+      alert('Не удалось изменить товар. Пожалуйста, попробуйте еще раз.');
+    }
+  };
+
+  const editItemPrice = async (itemId: string) => {
+    const item = list.items.find(i => i.id === itemId);
+    if (!item) return;
+    
+    const priceStr = prompt(`Укажите стоимость для "${item.name}":`, item.price.toString());
+    if (priceStr === null) return; // User cancelled
+    
+    const price = parseFloat(priceStr || '0');
+    if (isNaN(price)) {
+      alert('Пожалуйста, введите корректную сумму');
+      return;
+    }
+
+    try {
+      const result = await apiService.updateItemPrice(itemId, price);
+      if (result.success) {
+        onUpdateList(result.list);
+      }
+    } catch (error) {
+      console.error('Ошибка при обновлении цены:', error);
+      alert('Не удалось обновить цену. Пожалуйста, попробуйте еще раз.');
+    }
+  };
+
+  const deleteItem = async (itemId: string) => {
+    try {
+      const result = await apiService.deleteItem(itemId);
+      if (result.success) {
+        onUpdateList(result.list);
+      }
+    } catch (error) {
+      console.error('Ошибка при удалении товара:', error);
+      alert('Не удалось удалить товар. Пожалуйста, попробуйте еще раз.');
+    }
   };
 
   const pendingItems = list.items.filter(i => !i.isBought);

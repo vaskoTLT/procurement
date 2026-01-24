@@ -12,6 +12,7 @@ import {
   X,
   AlertTriangle
 } from 'lucide-react';
+import { apiService } from './services/apiService';
 
 // Initialize Telegram WebApp
 const tg = (window as any).Telegram?.WebApp;
@@ -27,32 +28,23 @@ const App: React.FC = () => {
   // Deletion state
   const [listIdToDelete, setListIdToDelete] = useState<string | null>(null);
 
-  // Persistence
+  // Load data from API on mount
   useEffect(() => {
-    try {
-      const saved = localStorage.getItem('shopping_lists');
-      if (saved) {
-        setLists(JSON.parse(saved));
-      } else {
-        // Demo initial data
-        const initial: ShoppingList[] = [
-          {
-            id: '1',
-            name: 'Продукты',
-            createdAt: Date.now(),
-            items: [
-              { id: 'i1', name: 'Молоко', quantity: 2, unit: Unit.L, price: 150, isBought: false },
-              { id: 'i2', name: 'Яйца', quantity: 10, unit: Unit.PCS, price: 110, isBought: true },
-            ]
-          }
-        ];
-        setLists(initial);
+    const loadLists = async () => {
+      try {
+        console.log('📥 Загружаем списки с API...');
+        const data = await apiService.getLists();
+        console.log('✅ Списки загружены:', data);
+        setLists(data);
+      } catch (error) {
+        console.error('❌ Ошибка при загрузке списков:', error);
+        setLists([]);
+      } finally {
+        setIsLoading(false);
       }
-    } catch (e) {
-      console.error("Failed to load lists", e);
-    } finally {
-      setIsLoading(false);
-    }
+    };
+
+    loadLists();
 
     if (tg) {
       tg.expand();
@@ -62,43 +54,46 @@ const App: React.FC = () => {
     }
   }, []);
 
-  useEffect(() => {
-    if (!isLoading) {
-      localStorage.setItem('shopping_lists', JSON.stringify(lists));
-    }
-  }, [lists, isLoading]);
-
   // View Controllers
   const handleSelectList = (id: string) => {
     setSelectedListId(id);
     setActiveView('list-detail');
   };
 
-  const handleCreateList = () => {
+  const handleCreateList = async () => {
     if (!newListName.trim()) return;
     
-    const newList: ShoppingList = {
-      id: Math.random().toString(36).substr(2, 9),
-      name: newListName.trim(),
-      createdAt: Date.now(),
-      items: []
-    };
-    
-    setLists(prev => [newList, ...prev]);
-    setIsNewListModalOpen(false);
-    setNewListName('');
-    handleSelectList(newList.id);
+    try {
+      console.log('📝 Создаем новый список...', newListName);
+      const newList = await apiService.createList(newListName.trim());
+      console.log('✅ Список создан:', newList);
+      setLists(prev => [newList, ...prev]);
+      setIsNewListModalOpen(false);
+      setNewListName('');
+      handleSelectList(newList.id);
+    } catch (error) {
+      console.error('❌ Ошибка при создании списка:', error);
+      alert('Ошибка при создании списка. Попробуйте еще раз.');
+    }
   };
 
-  const confirmDeleteList = () => {
+  const confirmDeleteList = async () => {
     if (!listIdToDelete) return;
     
-    setLists(prev => prev.filter(l => l.id !== listIdToDelete));
-    if (selectedListId === listIdToDelete) {
-      setActiveView('home');
-      setSelectedListId(null);
+    try {
+      console.log('🗑️ Удаляем список...', listIdToDelete);
+      await apiService.deleteList(listIdToDelete);
+      console.log('✅ Список удален');
+      setLists(prev => prev.filter(l => l.id !== listIdToDelete));
+      if (selectedListId === listIdToDelete) {
+        setActiveView('home');
+        setSelectedListId(null);
+      }
+      setListIdToDelete(null);
+    } catch (error) {
+      console.error('❌ Ошибка при удалении списка:', error);
+      alert('Ошибка при удалении списка. Попробуйте еще раз.');
     }
-    setListIdToDelete(null);
   };
 
   const activeList = useMemo(() => 

@@ -12,12 +12,15 @@ services:
     networks:
       - procurement-internal
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-procurement_user}"]
+      # Исправленная команда: добавляем -d для указания базы данных
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-procurement_user} -d ${POSTGRES_DB:-procurement_db}"]
       interval: 10s
       timeout: 5s
       retries: 5
+      start_period: 30s
     restart: unless-stopped
 
+  # остальные сервисы без изменений...
   backend:
     build: ./backend
     container_name: procurement-backend
@@ -30,6 +33,9 @@ services:
       NODE_ENV: production
       PORT: 3002
       TRAEFIK_ENABLED: "true"
+      # Добавляем задержку для подключения к БД
+      WAIT_HOSTS: postgres:5432
+      WAIT_TIMEOUT: 60
     depends_on:
       postgres:
         condition: service_healthy
