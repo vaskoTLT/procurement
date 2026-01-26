@@ -241,11 +241,48 @@ router.put('/:id/purchases/:purchaseId', async (req, res) => {
   }
 });
 
-// Удалить подсписок
+// Удалить подсписок (уменьшает количество товара на 1)
 router.delete('/:id/purchases/:purchaseId', async (req, res) => {
   try {
-    await ItemModel.deletePurchase(req.params.purchaseId);
-    res.json({ success: true, message: 'Purchase deleted' });
+    const itemId = req.params.id;
+    
+    // Получаем текущий товар
+    const itemResult = await db.query('SELECT quantity FROM items WHERE id = $1', [itemId]);
+    if (itemResult.rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Товар не найден' });
+    }
+    
+    const currentQuantity = parseFloat(itemResult.rows[0].quantity);
+    const newQuantity = Math.max(0, currentQuantity - 1);
+    
+    // Удаляем подсписок
+    await db.query('DELETE FROM item_purchases WHERE id = $1', [req.params.purchaseId]);
+    
+    // Обновляем количество товара
+    const result = await db.query(
+      `UPDATE items 
+       SET quantity = $1,
+           is_bought = (purchased_quantity >= $1),
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = $2
+       RETURNING *`,
+      [newQuantity, itemId]
+    );
+    
+    // Возвращаем обновленный товар с подсписками
+    const purchasesResult = await db.query(
+      `SELECT i.*, 
+              (SELECT json_agg(json_build_object('id', id, 'quantity', quantity, 'price_per_unit', price_per_unit, 'notes', notes, 'purchase_date', purchase_date)) 
+               FROM item_purchases 
+               WHERE item_id = i.id) as purchases
+       FROM items i WHERE i.id = $1`,
+      [itemId]
+    );
+    
+    const item = purchasesResult.rows[0];
+    item.purchases = item.purchases || [];
+    
+    res.json({ success: true, item });
   } catch (error) {
     console.error('Error deleting purchase:', error);
     res.status(500).json({ success: false, message: error.message });

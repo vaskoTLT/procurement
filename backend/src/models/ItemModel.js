@@ -1,9 +1,11 @@
 const db = require('./database');
 
 class ItemModel {
-  // Создать элемент
+  // Создать элемент и автоматические подсписки
   static async create(listId, itemData, userId = null) {
     const { name, quantity, unit, price, category } = itemData;
+    
+    console.log('📦 Создание товара:', { listId, name, quantity, unit, price, category });
     
     const result = await db.query(
       `INSERT INTO items (list_id, name, quantity, purchased_quantity, unit, price, category, added_by)
@@ -12,7 +14,45 @@ class ItemModel {
       [listId, name, quantity, 0, unit, price, category, userId]
     );
     
-    return result.rows[0];
+    const item = result.rows[0];
+    console.log('✅ Товар создан:', item.id);
+    
+    const qty = Math.ceil(parseFloat(quantity));
+    console.log('🔢 Количество:', qty);
+    
+    // Создаем автоматические подсписки - по одному на каждую единицу товара
+    // Цена за одну единицу = общая цена / количество
+    const pricePerUnit = qty > 0 ? price / qty : 0;
+    console.log('💰 Цена за единицу:', pricePerUnit);
+    
+    for (let i = 0; i < qty; i++) {
+      console.log(`➕ Создание подсписка ${i + 1}/${qty}...`);
+      try {
+        await db.query(
+          `INSERT INTO item_purchases (item_id, quantity, price_per_unit, notes, purchase_date)
+           VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP)`,
+          [item.id, 1, pricePerUnit, `Часть ${i + 1}`]
+        );
+        console.log(`✅ Подсписок ${i + 1} создан`);
+      } catch (err) {
+        console.error(`❌ Ошибка при создании подсписка ${i + 1}:`, err.message);
+        throw err;
+      }
+    }
+    
+    console.log('🔄 Загружаем подсписки...');
+    // Возвращаем товар с подсписками
+    const purchasesResult = await db.query(
+      `SELECT * FROM item_purchases WHERE item_id = $1 ORDER BY purchase_date ASC`,
+      [item.id]
+    );
+    
+    console.log(`✅ Загружено ${purchasesResult.rows.length} подсписков`);
+
+    return {
+      ...item,
+      purchases: purchasesResult.rows || []
+    };
   }
 
   // Получить все элементы списка с подсписками
@@ -127,6 +167,15 @@ class ItemModel {
 
   // Обновить количество
   static async updateQuantity(itemId, quantity) {
+    const itemResult = await db.query('SELECT * FROM items WHERE id = $1', [itemId]);
+    if (itemResult.rows.length === 0) return null;
+    
+    const item = itemResult.rows[0];
+    const oldQty = Math.ceil(parseFloat(item.quantity));
+    const newQty = Math.ceil(parseFloat(quantity));
+    const priceDelta = newQty > 0 ? item.price / newQty : 0;
+    
+    // Обновляем количество товара
     const result = await db.query(
       `UPDATE items 
        SET quantity = $1,
@@ -136,6 +185,35 @@ class ItemModel {
        RETURNING *`,
       [quantity, itemId]
     );
+    
+    // Синхронизируем подсписки
+    if (newQty > oldQty) {
+      // Нужно добавить подсписки
+      const diff = newQty - oldQty;
+      for (let i = 0; i < diff; i++) {
+        await db.query(
+          `INSERT INTO item_purchases (item_id, quantity, price_per_unit, notes, purchase_date)
+           VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP)`,
+          [itemId, 1, priceDelta, `Часть ${oldQty + i + 1}`]
+        );
+      }
+    } else if (newQty < oldQty) {
+      // Нужно удалить лишние подсписки
+      // Удаляем самые новые (последние добавленные)
+      const diff = oldQty - newQty;
+      await db.query(
+        `DELETE FROM item_purchases 
+         WHERE item_id = $1 
+         AND id IN (
+           SELECT id FROM item_purchases 
+           WHERE item_id = $1 
+           ORDER BY purchase_date DESC 
+           LIMIT $2
+         )`,
+        [itemId, diff]
+      );
+    }
+
     return result.rows[0];
   }
 
@@ -214,6 +292,12 @@ class ItemModel {
   static async update(itemId, updateData) {
     const { name, quantity, unit, price, category, notes, actual_purchase_price } = updateData;
     
+    // Если меняется количество, используем специальный метод для синхронизации подсписков
+    if (quantity !== undefined && quantity !== null) {
+      // Сначала синхронизируем подсписки
+      await this.updateQuantity(itemId, quantity);
+    }
+    
     const updates = [];
     const values = [];
     let paramCount = 1;
@@ -223,11 +307,7 @@ class ItemModel {
       values.push(name);
       paramCount++;
     }
-    if (quantity !== undefined) {
-      updates.push(`quantity = $${paramCount}`);
-      values.push(quantity);
-      paramCount++;
-    }
+    // Пропускаем quantity, так как её уже обновили
     if (unit !== undefined) {
       updates.push(`unit = $${paramCount}`);
       values.push(unit);
@@ -254,22 +334,21 @@ class ItemModel {
       paramCount++;
     }
 
-    if (updates.length === 0) {
-      return this.findById(itemId);
+    if (updates.length > 0) {
+      updates.push('updated_at = CURRENT_TIMESTAMP');
+      values.push(itemId);
+
+      await db.query(
+        `UPDATE items 
+         SET ${updates.join(', ')}
+         WHERE id = $${paramCount}
+         RETURNING *`,
+        values
+      );
     }
 
-    updates.push('updated_at = CURRENT_TIMESTAMP');
-    values.push(itemId);
-
-    const result = await db.query(
-      `UPDATE items 
-       SET ${updates.join(', ')}
-       WHERE id = $${paramCount}
-       RETURNING *`,
-      values
-    );
-
-    return result.rows[0];
+    // Возвращаем товар с подсписками
+    return this.findById(itemId);
   }
 }
 
