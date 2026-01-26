@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { ShoppingList, ShoppingItem, AppView, Unit } from './types';
 import { HomeView } from './components/HomeView';
 import { ListDetailView } from './components/ListDetailView';
+import { ListEditModal } from './components/ListEditModal';
 import { StatsView } from './components/StatsView';
 import { 
   Plus, 
@@ -10,7 +11,8 @@ import {
   ChevronLeft,
   Loader2,
   X,
-  AlertTriangle
+  AlertTriangle,
+  Edit2
 } from 'lucide-react';
 import { apiService } from './services/apiService';
 
@@ -24,6 +26,7 @@ const App: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [isNewListModalOpen, setIsNewListModalOpen] = useState(false);
   const [newListName, setNewListName] = useState('');
+  const [isEditListModalOpen, setIsEditListModalOpen] = useState(false);
   
   // Deletion state
   const [listIdToDelete, setListIdToDelete] = useState<string | null>(null);
@@ -104,6 +107,11 @@ const App: React.FC = () => {
     setLists(prev => prev.map(l => l.id === updated.id ? updated : l));
   };
 
+  const handleEditListUpdated = (updated: ShoppingList) => {
+    updateList(updated);
+    setIsEditListModalOpen(false);
+  };
+
   if (isLoading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen bg-white">
@@ -132,6 +140,14 @@ const App: React.FC = () => {
             {activeView === 'home' ? 'Мои Списки' : activeView === 'stats' ? 'Статистика' : activeList?.name}
           </h1>
         </div>
+        {activeView === 'list-detail' && activeList && (
+          <button 
+            onClick={() => setIsEditListModalOpen(true)}
+            className="p-2 text-white hover:bg-green-700 rounded-full transition-colors"
+          >
+            <Edit2 className="w-5 h-5" />
+          </button>
+        )}
       </header>
 
       {/* Main Content */}
@@ -190,6 +206,15 @@ const App: React.FC = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Edit List Modal */}
+      {isEditListModalOpen && activeList && (
+        <ListEditModal 
+          list={activeList}
+          onClose={() => setIsEditListModalOpen(false)}
+          onUpdate={handleEditListUpdated}
+        />
       )}
 
       {/* Delete Confirmation Modal */}

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { ShoppingList, ShoppingItem, Unit } from '../types';
 import { apiService } from '../services/apiService';
+import { ItemEditModal } from './ItemEditModal';
 import { 
   Plus, 
   Minus,
@@ -8,7 +9,8 @@ import {
   X, 
   Trash2, 
   Sparkles,
-  ChevronDown
+  ChevronDown,
+  Edit2
 } from 'lucide-react';
 
 interface ListDetailViewProps {
@@ -22,6 +24,7 @@ export const ListDetailView: React.FC<ListDetailViewProps> = ({ list, onUpdateLi
   const [newItemPrice, setNewItemPrice] = useState<string>('');
   const [newItemUnit, setNewItemUnit] = useState<Unit>(Unit.PCS);
   const [isAdding, setIsAdding] = useState(false);
+  const [editingItem, setEditingItem] = useState<ShoppingItem | null>(null);
 
   // Расчет общей стоимости с учетом количества
   const calculateItemTotal = (item: ShoppingItem) => {
@@ -66,6 +69,17 @@ export const ListDetailView: React.FC<ListDetailViewProps> = ({ list, onUpdateLi
       console.error('Ошибка при изменении товара:', error);
       alert('Не удалось изменить товар. Пожалуйста, попробуйте еще раз.');
     }
+  };
+
+  const editItem = async (item: ShoppingItem) => {
+    setEditingItem(item);
+  };
+
+  const handleItemUpdated = async (updatedItem: ShoppingItem) => {
+    setEditingItem(null);
+    // Reload items for this list
+    const items = await apiService.getItemsForList(list.id);
+    onUpdateList({ ...list, items });
   };
 
   const editItemPrice = async (itemId: string) => {
@@ -271,6 +285,15 @@ export const ListDetailView: React.FC<ListDetailViewProps> = ({ list, onUpdateLi
         </div>
       )}
 
+      {/* Item Edit Modal */}
+      {editingItem && (
+        <ItemEditModal 
+          item={editingItem}
+          onClose={() => setEditingItem(null)}
+          onUpdate={handleItemUpdated}
+        />
+      )}
+
       {/* Sections */}
       <div className="space-y-8">
         {/* Pending */}
@@ -290,6 +313,7 @@ export const ListDetailView: React.FC<ListDetailViewProps> = ({ list, onUpdateLi
                   onToggle={() => toggleItem(item.id)} 
                   onDelete={() => deleteItem(item.id)}
                   onEditPrice={() => editItemPrice(item.id)}
+                  onEdit={() => editItem(item)}
                 />
               ))
             )}
@@ -310,6 +334,7 @@ export const ListDetailView: React.FC<ListDetailViewProps> = ({ list, onUpdateLi
                 onToggle={() => toggleItem(item.id)} 
                 onDelete={() => deleteItem(item.id)}
                 onEditPrice={() => editItemPrice(item.id)}
+                onEdit={() => editItem(item)}
               />
             ))}
           </div>
@@ -319,7 +344,7 @@ export const ListDetailView: React.FC<ListDetailViewProps> = ({ list, onUpdateLi
   );
 };
 
-const ItemRow: React.FC<{ item: ShoppingItem, onToggle: () => void, onDelete: () => void, onEditPrice: () => void }> = ({ item, onToggle, onDelete, onEditPrice }) => {
+const ItemRow: React.FC<{ item: ShoppingItem, onToggle: () => void, onDelete: () => void, onEditPrice: () => void, onEdit: () => void }> = ({ item, onToggle, onDelete, onEditPrice, onEdit }) => {
   const unitMap: Record<Unit, string> = {
     [Unit.PCS]: 'шт',
     [Unit.KG]: 'кг',
@@ -363,6 +388,13 @@ const ItemRow: React.FC<{ item: ShoppingItem, onToggle: () => void, onDelete: ()
             {item.price.toFixed(2)} ₽ × {item.quantity}
           </span>
         )}
+      </button>
+
+      <button 
+        onClick={(e) => { e.stopPropagation(); onEdit(); }} 
+        className="p-2 text-gray-300 hover:text-blue-500 transition-colors"
+      >
+        <Edit2 className="w-4 h-4" />
       </button>
 
       <button onClick={(e) => { e.stopPropagation(); onDelete(); }} className="p-2 text-gray-300 hover:text-red-500 transition-colors">

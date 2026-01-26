@@ -14,6 +14,20 @@ router.get('/list/:listId', async (req, res) => {
   }
 });
 
+// Получить один товар с подсписками
+router.get('/:id', async (req, res) => {
+  try {
+    const item = await ItemModel.findById(req.params.id);
+    if (!item) {
+      return res.status(404).json({ success: false, message: 'Товар не найден' });
+    }
+    res.json({ success: true, item });
+  } catch (error) {
+    console.error('Error getting item:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
 // Создать товар
 router.post('/', async (req, res) => {
   try {
@@ -30,6 +44,31 @@ router.post('/', async (req, res) => {
     res.json({ success: true, item });
   } catch (error) {
     console.error('Error creating item:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// Обновить товар (все поля)
+router.put('/:id', async (req, res) => {
+  try {
+    const { name, quantity, unit, price, category, notes, actual_purchase_price } = req.body;
+    const item = await ItemModel.update(req.params.id, {
+      name,
+      quantity,
+      unit,
+      price,
+      category,
+      notes,
+      actual_purchase_price
+    });
+    
+    if (!item) {
+      return res.status(404).json({ success: false, message: 'Товар не найден' });
+    }
+    
+    res.json({ success: true, item });
+  } catch (error) {
+    console.error('Error updating item:', error);
     res.status(500).json({ success: false, message: error.message });
   }
 });
@@ -151,6 +190,64 @@ router.delete('/:id', async (req, res) => {
     res.json({ success: true, message: 'Item deleted' });
   } catch (error) {
     console.error('Error deleting item:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// ===== ENDPOINT ДЛЯ ПОДСПИСКОВ =====
+
+// Добавить подсписок товара
+router.post('/:id/purchases', async (req, res) => {
+  try {
+    const { quantity, price_per_unit, notes } = req.body;
+    
+    if (!quantity || quantity <= 0) {
+      return res.status(400).json({ success: false, message: 'Количество должно быть больше 0' });
+    }
+    
+    const purchase = await ItemModel.addPurchase(req.params.id, quantity, price_per_unit, notes);
+    res.json({ success: true, purchase });
+  } catch (error) {
+    console.error('Error adding purchase:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// Получить все подсписки товара
+router.get('/:id/purchases', async (req, res) => {
+  try {
+    const purchases = await ItemModel.getPurchases(req.params.id);
+    res.json({ success: true, purchases });
+  } catch (error) {
+    console.error('Error getting purchases:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// Обновить подсписок
+router.put('/:id/purchases/:purchaseId', async (req, res) => {
+  try {
+    const { quantity, price_per_unit, notes } = req.body;
+    
+    if (quantity && quantity <= 0) {
+      return res.status(400).json({ success: false, message: 'Количество должно быть больше 0' });
+    }
+    
+    const purchase = await ItemModel.updatePurchase(req.params.purchaseId, quantity, price_per_unit, notes);
+    res.json({ success: true, purchase });
+  } catch (error) {
+    console.error('Error updating purchase:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// Удалить подсписок
+router.delete('/:id/purchases/:purchaseId', async (req, res) => {
+  try {
+    await ItemModel.deletePurchase(req.params.purchaseId);
+    res.json({ success: true, message: 'Purchase deleted' });
+  } catch (error) {
+    console.error('Error deleting purchase:', error);
     res.status(500).json({ success: false, message: error.message });
   }
 });

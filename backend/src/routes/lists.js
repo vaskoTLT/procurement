@@ -24,17 +24,87 @@ router.get('/', async (req, res) => {
   }
 });
 
+// Получить один список
+router.get('/:id', async (req, res) => {
+  try {
+    const result = await db.query(
+      'SELECT * FROM shopping_lists WHERE id = $1',
+      [req.params.id]
+    );
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Список не найден' });
+    }
+    
+    res.json({ success: true, list: result.rows[0] });
+  } catch (error) {
+    console.error('Error getting list:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
 // Создать список
 router.post('/', async (req, res) => {
   try {
-    const { name, is_public = true } = req.body;
+    const { name, is_public = true, description = '' } = req.body;
     const result = await db.query(
-      'INSERT INTO shopping_lists (name, is_public, created_by) VALUES ($1, $2, $3) RETURNING *',
-      [name, is_public, 1]
+      'INSERT INTO shopping_lists (name, is_public, created_by, description) VALUES ($1, $2, $3, $4) RETURNING *',
+      [name, is_public, 1, description]
     );
     res.json({ success: true, list: result.rows[0] });
   } catch (error) {
     console.error('Error creating list:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// Обновить список (имя, описание, и другие поля)
+router.put('/:id', async (req, res) => {
+  try {
+    const { name, description, is_public } = req.body;
+    
+    const updates = [];
+    const values = [];
+    let paramCount = 1;
+
+    if (name !== undefined) {
+      updates.push(`name = $${paramCount}`);
+      values.push(name);
+      paramCount++;
+    }
+    if (description !== undefined) {
+      updates.push(`description = $${paramCount}`);
+      values.push(description);
+      paramCount++;
+    }
+    if (is_public !== undefined) {
+      updates.push(`is_public = $${paramCount}`);
+      values.push(is_public);
+      paramCount++;
+    }
+
+    if (updates.length === 0) {
+      return res.status(400).json({ success: false, message: 'Нет данных для обновления' });
+    }
+
+    updates.push('updated_at = CURRENT_TIMESTAMP');
+    values.push(req.params.id);
+
+    const result = await db.query(
+      `UPDATE shopping_lists 
+       SET ${updates.join(', ')}
+       WHERE id = $${paramCount}
+       RETURNING *`,
+      values
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Список не найден' });
+    }
+
+    res.json({ success: true, list: result.rows[0] });
+  } catch (error) {
+    console.error('Error updating list:', error);
     res.status(500).json({ success: false, message: error.message });
   }
 });
