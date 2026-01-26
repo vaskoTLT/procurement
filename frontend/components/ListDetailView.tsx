@@ -25,6 +25,7 @@ export const ListDetailView: React.FC<ListDetailViewProps> = ({ list, onUpdateLi
   const [newItemUnit, setNewItemUnit] = useState<Unit>(Unit.PCS);
   const [isAdding, setIsAdding] = useState(false);
   const [editingItem, setEditingItem] = useState<ShoppingItem | null>(null);
+  const [expandedItemIds, setExpandedItemIds] = useState<Set<string>>(new Set());
 
   // Расчет общей стоимости с учетом количества
   const calculateItemTotal = (item: ShoppingItem) => {
@@ -80,6 +81,18 @@ export const ListDetailView: React.FC<ListDetailViewProps> = ({ list, onUpdateLi
     // Reload items for this list
     const items = await apiService.getItemsForList(list.id);
     onUpdateList({ ...list, items });
+  };
+
+  const deletePurchase = async (itemId: string, purchaseId: number) => {
+    try {
+      await apiService.deleteItemPurchase(itemId, purchaseId);
+      // Reload items for this list
+      const items = await apiService.getItemsForList(list.id);
+      onUpdateList({ ...list, items });
+    } catch (error) {
+      console.error('Ошибка при удалении подсписка:', error);
+      alert('Не удалось удалить подсписок');
+    }
   };
 
   const editItemPrice = async (itemId: string) => {
@@ -313,8 +326,17 @@ export const ListDetailView: React.FC<ListDetailViewProps> = ({ list, onUpdateLi
                   onToggle={() => toggleItem(item.id)} 
                   onDelete={() => deleteItem(item.id)}
                   onEditPrice={() => editItemPrice(item.id)}
-                  onEdit={() => editItem(item)}
-                />
+                  onEdit={() => editItem(item)}                  isExpanded={expandedItemIds.has(item.id)}
+                  onToggleExpand={() => {
+                    const newSet = new Set(expandedItemIds);
+                    if (newSet.has(item.id)) {
+                      newSet.delete(item.id);
+                    } else {
+                      newSet.add(item.id);
+                    }
+                    setExpandedItemIds(newSet);
+                  }}
+                  onDeletePurchase={(purchaseId) => deletePurchase(item.id, purchaseId)}                />
               ))
             )}
           </div>
@@ -335,6 +357,17 @@ export const ListDetailView: React.FC<ListDetailViewProps> = ({ list, onUpdateLi
                 onDelete={() => deleteItem(item.id)}
                 onEditPrice={() => editItemPrice(item.id)}
                 onEdit={() => editItem(item)}
+                isExpanded={expandedItemIds.has(item.id)}
+                onToggleExpand={() => {
+                  const newSet = new Set(expandedItemIds);
+                  if (newSet.has(item.id)) {
+                    newSet.delete(item.id);
+                  } else {
+                    newSet.add(item.id);
+                  }
+                  setExpandedItemIds(newSet);
+                }}
+                onDeletePurchase={(purchaseId) => deletePurchase(item.id, purchaseId)}
               />
             ))}
           </div>
@@ -344,7 +377,18 @@ export const ListDetailView: React.FC<ListDetailViewProps> = ({ list, onUpdateLi
   );
 };
 
-const ItemRow: React.FC<{ item: ShoppingItem, onToggle: () => void, onDelete: () => void, onEditPrice: () => void, onEdit: () => void }> = ({ item, onToggle, onDelete, onEditPrice, onEdit }) => {
+interface ItemRowProps {
+  item: ShoppingItem;
+  onToggle: () => void;
+  onDelete: () => void;
+  onEditPrice: () => void;
+  onEdit: () => void;
+  isExpanded: boolean;
+  onToggleExpand: () => void;
+  onDeletePurchase: (purchaseId: number) => void;
+}
+
+const ItemRow: React.FC<ItemRowProps> = ({ item, onToggle, onDelete, onEditPrice, onEdit, isExpanded, onToggleExpand, onDeletePurchase }) => {
   const unitMap: Record<Unit, string> = {
     [Unit.PCS]: 'шт',
     [Unit.KG]: 'кг',
@@ -353,53 +397,113 @@ const ItemRow: React.FC<{ item: ShoppingItem, onToggle: () => void, onDelete: ()
     [Unit.ML]: 'мл',
   };
 
+  const purchases = item.purchases || [];
+  const hasPurchases = purchases && purchases.length > 0;
+
   // Расчет общей стоимости товара
-  const itemTotal = item.price * item.quantity;
+  let itemTotal = item.price * item.quantity;
+  
+  // Если есть подсписки с разными ценами, считаем по ним
+  if (hasPurchases && purchases.some(p => p.price_per_unit)) {
+    itemTotal = purchases.reduce((sum, p) => {
+      const purchasePrice = p.price_per_unit ? p.price_per_unit * p.quantity : 0;
+      return sum + purchasePrice;
+    }, 0);
+  }
 
   return (
-    <div className={`flex items-center gap-3 p-3 bg-white rounded-xl border border-gray-100 shadow-sm transition-all active:scale-[0.98] ${item.isBought ? 'bg-gray-50 border-transparent' : ''}`}>
-      <button 
-        onClick={(e) => { e.stopPropagation(); onToggle(); }}
-        className={`w-8 h-8 rounded-full border-2 flex items-center justify-center transition-all flex-shrink-0 ${item.isBought ? 'bg-green-600 border-green-600 text-white shadow-[0_2px_8px_rgba(22,163,74,0.3)]' : 'border-gray-200 hover:border-green-400 bg-white'}`}
-      >
-        {item.isBought && <Check className="w-5 h-5" strokeWidth={3} />}
-      </button>
+    <div className="space-y-2">
+      <div className={`flex items-center gap-3 p-3 bg-white rounded-xl border border-gray-100 shadow-sm transition-all active:scale-[0.98] ${item.isBought ? 'bg-gray-50 border-transparent' : ''}`}>
+        <button 
+          onClick={(e) => { e.stopPropagation(); onToggle(); }}
+          className={`w-8 h-8 rounded-full border-2 flex items-center justify-center transition-all flex-shrink-0 ${item.isBought ? 'bg-green-600 border-green-600 text-white shadow-[0_2px_8px_rgba(22,163,74,0.3)]' : 'border-gray-200 hover:border-green-400 bg-white'}`}
+        >
+          {item.isBought && <Check className="w-5 h-5" strokeWidth={3} />}
+        </button>
 
-      <div className="flex-1 min-w-0" onClick={onToggle}>
-        <div className="flex items-center gap-2">
-          <p className={`font-bold truncate text-[15px] ${item.isBought ? 'line-through text-gray-400' : 'text-gray-800'}`}>
-            {item.name}
+        {/* Toggle purchases if exist */}
+        {hasPurchases && (
+          <button
+            onClick={() => onToggleExpand()}
+            className="text-gray-400 hover:text-gray-600 flex-shrink-0"
+          >
+            <ChevronDown className={`w-5 h-5 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
+          </button>
+        )}
+        {!hasPurchases && <div className="w-5" />}
+
+        <div className="flex-1 min-w-0" onClick={onToggle}>
+          <div className="flex items-center gap-2">
+            <p className={`font-bold truncate text-[15px] ${item.isBought ? 'line-through text-gray-400' : 'text-gray-800'}`}>
+              {item.name}
+            </p>
+          </div>
+          <p className="text-[11px] text-gray-400 font-bold">
+            {item.quantity} {unitMap[item.unit]}{hasPurchases && ` • ${purchases.length} куп.`}
           </p>
         </div>
-        <p className="text-[11px] text-gray-400 font-bold">
-          {item.quantity} {unitMap[item.unit]}
-        </p>
+
+        <button 
+          onClick={(e) => { e.stopPropagation(); onEditPrice(); }}
+          className={`flex flex-col items-end px-3 py-1.5 rounded-xl transition-all border ${item.isBought ? 'text-green-700 bg-green-50/50 border-green-100' : 'text-gray-700 bg-gray-50 border-gray-100 hover:border-green-200'}`}
+        >
+          <span className="text-xs font-black whitespace-nowrap">
+            {itemTotal > 0 ? `${itemTotal.toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ₽` : '0 ₽'}
+          </span>
+          {!hasPurchases && item.quantity > 1 && (
+            <span className="text-[9px] text-gray-500 mt-0.5">
+              {item.price.toFixed(2)} ₽ × {item.quantity}
+            </span>
+          )}
+        </button>
+
+        <button 
+          onClick={(e) => { e.stopPropagation(); onEdit(); }} 
+          className="p-2 text-gray-300 hover:text-blue-500 transition-colors"
+        >
+          <Edit2 className="w-4 h-4" />
+        </button>
+
+        <button onClick={(e) => { e.stopPropagation(); onDelete(); }} className="p-2 text-gray-300 hover:text-red-500 transition-colors">
+          <Trash2 className="w-4 h-4" />
+        </button>
       </div>
 
-      <button 
-        onClick={(e) => { e.stopPropagation(); onEditPrice(); }}
-        className={`flex flex-col items-end px-3 py-1.5 rounded-xl transition-all border ${item.isBought ? 'text-green-700 bg-green-50/50 border-green-100' : 'text-gray-700 bg-gray-50 border-gray-100 hover:border-green-200'}`}
-      >
-        <span className="text-xs font-black whitespace-nowrap">
-          {itemTotal > 0 ? `${itemTotal.toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ₽` : '0 ₽'}
-        </span>
-        {item.quantity > 1 && (
-          <span className="text-[9px] text-gray-500 mt-0.5">
-            {item.price.toFixed(2)} ₽ × {item.quantity}
-          </span>
-        )}
-      </button>
+      {/* Purchases (Sub-items) */}
+      {hasPurchases && isExpanded && (
+        <div className="ml-8 space-y-2">
+          {purchases.map((purchase) => (
+            <div key={purchase.id} className="flex items-center gap-3 p-3 bg-green-50/40 rounded-lg border border-green-100/50 shadow-xs">
+              <div className="w-6 h-6 rounded-full border-2 border-green-200 bg-white flex-shrink-0" />
+              
+              <div className="flex-1 min-w-0">
+                <p className="text-[14px] text-gray-700 font-semibold">
+                  {item.name}
+                </p>
+                <p className="text-[11px] text-gray-500">
+                  {purchase.quantity} {unitMap[item.unit]}
+                </p>
+              </div>
 
-      <button 
-        onClick={(e) => { e.stopPropagation(); onEdit(); }} 
-        className="p-2 text-gray-300 hover:text-blue-500 transition-colors"
-      >
-        <Edit2 className="w-4 h-4" />
-      </button>
+              <div className="text-right px-2 py-1 rounded-lg bg-green-100/60">
+                <span className="text-xs font-bold text-green-700 whitespace-nowrap">
+                  {purchase.price_per_unit 
+                    ? `${(purchase.quantity * purchase.price_per_unit).toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ₽`
+                    : '0 ₽'
+                  }
+                </span>
+              </div>
 
-      <button onClick={(e) => { e.stopPropagation(); onDelete(); }} className="p-2 text-gray-300 hover:text-red-500 transition-colors">
-        <Trash2 className="w-4 h-4" />
-      </button>
+              <button 
+                onClick={() => onDeletePurchase(purchase.id)}
+                className="p-2 text-gray-300 hover:text-red-500 transition-colors"
+              >
+                <Trash2 className="w-4 h-4" />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 };
