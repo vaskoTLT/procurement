@@ -16,6 +16,8 @@ export interface ItemPurchase {
   price_per_unit?: number | null;
   purchase_date: string;
   notes?: string | null;
+  is_purchased?: boolean;
+  purchased_at?: string | null;
   created_at: string;
   updated_at: string;
 }

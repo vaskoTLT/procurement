@@ -226,6 +226,14 @@ class ApiService {
     await this.fetch(`/items/${itemId}/purchases/${purchaseId}`, { method: 'DELETE' });
   }
 
+  async toggleItemPurchase(itemId: string, purchaseId: number): Promise<ShoppingItem> {
+    const data = await this.fetch<{ success: boolean; item: any }>(`/items/${itemId}/purchases/${purchaseId}/toggle`, {
+      method: 'PUT',
+    });
+    
+    return this.convertApiItem(data.item);
+  }
+
   async categorizeItem(itemName: string): Promise<string> {
     const categories: Record<string, string> = {
       молоко: 'Молочные',

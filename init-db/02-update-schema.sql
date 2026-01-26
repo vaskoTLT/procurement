@@ -31,13 +31,13 @@ CREATE INDEX IF NOT EXISTS idx_item_purchases_date ON item_purchases(purchase_da
 CREATE OR REPLACE FUNCTION recalculate_purchased_quantity()
 RETURNS TRIGGER AS $$
 BEGIN
-    -- Пересчитываем общее купленное количество из подсписков
+    -- Пересчитываем общее купленное количество из подсписков (только помеченных как is_purchased=true)
     UPDATE items 
     SET purchased_quantity = COALESCE((
-        SELECT SUM(quantity) FROM item_purchases WHERE item_id = NEW.item_id
+        SELECT SUM(quantity) FROM item_purchases WHERE item_id = NEW.item_id AND is_purchased = true
     ), 0),
     is_bought = (
-        COALESCE((SELECT SUM(quantity) FROM item_purchases WHERE item_id = NEW.item_id), 0) >= quantity
+        COALESCE((SELECT SUM(quantity) FROM item_purchases WHERE item_id = NEW.item_id AND is_purchased = true), 0) >= quantity
     ),
     updated_at = CURRENT_TIMESTAMP
     WHERE id = NEW.item_id;

@@ -95,6 +95,18 @@ export const ListDetailView: React.FC<ListDetailViewProps> = ({ list, onUpdateLi
     }
   };
 
+  const togglePurchase = async (itemId: string, purchaseId: number) => {
+    try {
+      const updatedItem = await apiService.toggleItemPurchase(itemId, purchaseId);
+      // Reload items for this list
+      const items = await apiService.getItemsForList(list.id);
+      onUpdateList({ ...list, items });
+    } catch (error) {
+      console.error('Ошибка при отметке подсписка:', error);
+      alert('Не удалось отметить подсписок');
+    }
+  };
+
   const editItemPrice = async (itemId: string) => {
     const item = list.items.find(i => i.id === itemId);
     if (!item) return;
@@ -136,10 +148,49 @@ export const ListDetailView: React.FC<ListDetailViewProps> = ({ list, onUpdateLi
   const pendingItems = list.items.filter(i => !i.isBought);
   const completedItems = list.items.filter(i => i.isBought);
   
-  // ИСПРАВЛЕНО: Учитываем количество при расчете суммы
-  const actualTotal = completedItems.reduce((sum, item) => sum + calculateItemTotal(item), 0);
+  // Рассчитываем сумму куплено на основе подсписков (если есть) или по purchased_quantity (если нет)
+  const calculatePurchasedTotal = (item: ShoppingItem) => {
+    const purchases = item.purchases || [];
+    if (purchases.length > 0) {
+      // Если есть подсписки, считаем по ним: только те что помечены как is_purchased
+      return purchases.reduce((sum, p) => {
+        if (p.is_purchased) {
+          return sum + (p.price_per_unit ? p.price_per_unit * p.quantity : 0);
+        }
+        return sum;
+      }, 0);
+    }
+    // Если нет подсписков, используем старую логику
+    return item.actual_purchase_price || (item.price * ((item.purchasedQuantity || 0) / item.quantity));
+  };
+
+  // Считаем фактически куплено (по подсписком или по purchased_quantity)
+  let actualTotal = 0;
+  for (const item of list.items) {
+    actualTotal += calculatePurchasedTotal(item);
+  }
+  
   const estimatedTotal = list.items.reduce((sum, item) => sum + calculateItemTotal(item), 0);
-  const progressPercent = list.items.length > 0 ? (completedItems.length / list.items.length) * 100 : 0;
+  
+  // Прогресс в зависимости от stanzas (если есть подсписки) или по товарам (если нет)
+  let completedCount = 0;
+  let totalCount = 0;
+  
+  for (const item of list.items) {
+    const purchases = item.purchases || [];
+    if (purchases.length > 0) {
+      // Если есть подсписки, считаем их
+      const purchasedCount = purchases.filter(p => p.is_purchased).length;
+      completedCount += purchasedCount;
+      totalCount += purchases.length;
+    } else {
+      // Если нет подсписков, используем флаг товара
+      if (item.isBought) completedCount++;
+      totalCount++;
+    }
+  }
+  
+  const progressPercent = totalCount > 0 ? (completedCount / totalCount) * 100 : 0;
 
   const getUnitText = (unit: Unit): string => {
     const unitMap: Record<Unit, string> = {
@@ -336,7 +387,8 @@ export const ListDetailView: React.FC<ListDetailViewProps> = ({ list, onUpdateLi
                     }
                     setExpandedItemIds(newSet);
                   }}
-                  onDeletePurchase={(purchaseId) => deletePurchase(item.id, purchaseId)}                />
+                  onDeletePurchase={(purchaseId) => deletePurchase(item.id, purchaseId)}
+                  onTogglePurchase={(purchaseId) => togglePurchase(item.id, purchaseId)}                />
               ))
             )}
           </div>
@@ -368,6 +420,7 @@ export const ListDetailView: React.FC<ListDetailViewProps> = ({ list, onUpdateLi
                   setExpandedItemIds(newSet);
                 }}
                 onDeletePurchase={(purchaseId) => deletePurchase(item.id, purchaseId)}
+                onTogglePurchase={(purchaseId) => togglePurchase(item.id, purchaseId)}
               />
             ))}
           </div>
@@ -386,9 +439,10 @@ interface ItemRowProps {
   isExpanded: boolean;
   onToggleExpand: () => void;
   onDeletePurchase: (purchaseId: number) => void;
+  onTogglePurchase: (purchaseId: number) => void;
 }
 
-const ItemRow: React.FC<ItemRowProps> = ({ item, onToggle, onDelete, onEditPrice, onEdit, isExpanded, onToggleExpand, onDeletePurchase }) => {
+const ItemRow: React.FC<ItemRowProps> = ({ item, onToggle, onDelete, onEditPrice, onEdit, isExpanded, onToggleExpand, onDeletePurchase, onTogglePurchase }) => {
   const unitMap: Record<Unit, string> = {
     [Unit.PCS]: 'шт',
     [Unit.KG]: 'кг',
@@ -473,20 +527,29 @@ const ItemRow: React.FC<ItemRowProps> = ({ item, onToggle, onDelete, onEditPrice
       {hasPurchases && isExpanded && (
         <div className="ml-8 space-y-2">
           {purchases.map((purchase) => (
-            <div key={purchase.id} className="flex items-center gap-3 p-3 bg-green-50/40 rounded-lg border border-green-100/50 shadow-xs">
-              <div className="w-6 h-6 rounded-full border-2 border-green-200 bg-white flex-shrink-0" />
+            <div key={purchase.id} className={`flex items-center gap-3 p-3 rounded-lg border transition-all ${purchase.is_purchased ? 'bg-green-100/60 border-green-300' : 'bg-green-50/40 border-green-100/50'}`}>
+              <button 
+                onClick={() => onTogglePurchase(purchase.id)}
+                className={`w-6 h-6 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-all ${
+                  purchase.is_purchased 
+                    ? 'bg-green-600 border-green-600 text-white' 
+                    : 'border-green-300 hover:border-green-500 bg-white'
+                }`}
+              >
+                {purchase.is_purchased && <Check className="w-4 h-4" strokeWidth={3} />}
+              </button>
               
               <div className="flex-1 min-w-0">
-                <p className="text-[14px] text-gray-700 font-semibold">
+                <p className={`text-[14px] font-semibold ${purchase.is_purchased ? 'line-through text-gray-500' : 'text-gray-700'}`}>
                   {item.name}
                 </p>
-                <p className="text-[11px] text-gray-500">
+                <p className={`text-[11px] ${purchase.is_purchased ? 'text-gray-500' : 'text-gray-500'}`}>
                   {purchase.quantity} {unitMap[item.unit]}
                 </p>
               </div>
 
-              <div className="text-right px-2 py-1 rounded-lg bg-green-100/60">
-                <span className="text-xs font-bold text-green-700 whitespace-nowrap">
+              <div className={`text-right px-2 py-1 rounded-lg ${purchase.is_purchased ? 'bg-green-200/60' : 'bg-green-100/60'}`}>
+                <span className={`text-xs font-bold whitespace-nowrap ${purchase.is_purchased ? 'text-green-800' : 'text-green-700'}`}>
                   {purchase.price_per_unit 
                     ? `${(purchase.quantity * purchase.price_per_unit).toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ₽`
                     : '0 ₽'

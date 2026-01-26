@@ -241,6 +241,64 @@ router.put('/:id/purchases/:purchaseId', async (req, res) => {
   }
 });
 
+// Отметить подсписок как купленный/не купленный (toggle)
+router.put('/:id/purchases/:purchaseId/toggle', async (req, res) => {
+  try {
+    const itemId = req.params.id;
+    const purchaseId = req.params.purchaseId;
+    
+    // Получаем текущий статус подсписка
+    const purchaseResult = await db.query(
+      'SELECT is_purchased FROM item_purchases WHERE id = $1',
+      [purchaseId]
+    );
+    
+    if (purchaseResult.rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Подсписок не найден' });
+    }
+    
+    const currentStatus = purchaseResult.rows[0].is_purchased || false;
+    const newStatus = !currentStatus;
+    
+    // Обновляем статус подсписка
+    const updateResult = await db.query(
+      `UPDATE item_purchases 
+       SET is_purchased = $1, 
+           purchased_at = CASE WHEN $1 = true THEN CURRENT_TIMESTAMP ELSE NULL END,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = $2
+       RETURNING *`,
+      [newStatus, purchaseId]
+    );
+    
+    // Возвращаем товар с обновленным подсписком и всеми подсписками
+    const itemResult = await db.query(
+      `SELECT i.*, 
+              (SELECT json_agg(json_build_object(
+                'id', id, 
+                'quantity', quantity, 
+                'price_per_unit', price_per_unit, 
+                'notes', notes, 
+                'purchase_date', purchase_date,
+                'is_purchased', is_purchased,
+                'purchased_at', purchased_at
+              ) ORDER BY purchase_date ASC) 
+       FROM item_purchases 
+       WHERE item_id = i.id) as purchases
+       FROM items i WHERE i.id = $1`,
+      [itemId]
+    );
+    
+    const item = itemResult.rows[0];
+    item.purchases = item.purchases || [];
+    
+    res.json({ success: true, item, purchase: updateResult.rows[0] });
+  } catch (error) {
+    console.error('Error toggling purchase:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
 // Удалить подсписок (уменьшает количество товара на 1)
 router.delete('/:id/purchases/:purchaseId', async (req, res) => {
   try {
