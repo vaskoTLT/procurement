@@ -29,7 +29,14 @@ export const ListDetailView: React.FC<ListDetailViewProps> = ({ list, onUpdateLi
 
   // Расчет общей стоимости с учетом количества
   const calculateItemTotal = (item: ShoppingItem) => {
-    return item.price * item.quantity;
+    // Если есть подсписки, считаем полную сумму по ним
+    if (item.purchases && item.purchases.length > 0) {
+      return item.purchases.reduce((sum, p) => {
+        return sum + (p.price_per_unit ? p.price_per_unit * p.quantity : 0);
+      }, 0);
+    }
+    // Если нет подсписков, цена уже содержит полную сумму
+    return item.price;
   };
 
   const addItem = async () => {
@@ -61,8 +68,24 @@ export const ListDetailView: React.FC<ListDetailViewProps> = ({ list, onUpdateLi
     }
   };
 
-  const toggleItem = async (itemId: string) => {
+  const toggleItem = async (itemId: string, item?: ShoppingItem) => {
     try {
+      // Если есть подсписки и ничего не отмечено, отмечаем все при отметке товара
+      if (item && item.purchases && item.purchases.length > 0) {
+        const purchasedCount = item.purchases.filter(p => p.is_purchased).length;
+        
+        // Если ничего не было отмечено и нажали отметить товар целиком
+        if (purchasedCount === 0 && !item.isBought) {
+          // Отмечаем все подсписки
+          for (const purchase of item.purchases) {
+            if (!purchase.is_purchased) {
+              await apiService.togglePurchase(itemId, purchase.id);
+            }
+          }
+        }
+      }
+      
+      // Отмечаем сам товар
       await apiService.toggleItem(itemId);
       
       // Reload items for this list
@@ -171,7 +194,7 @@ export const ListDetailView: React.FC<ListDetailViewProps> = ({ list, onUpdateLi
   const pendingItems = list.items.filter(i => !i.isBought);
   const completedItems = list.items.filter(i => i.isBought);
   
-  // Рассчитываем сумму куплено на основе подсписков (если есть) или по purchased_quantity (если нет)
+  // Рассчитываем сумму куплено на основе подсписков (если есть) или по isBought (если нет)
   const calculatePurchasedTotal = (item: ShoppingItem) => {
     const purchases = item.purchases || [];
     if (purchases.length > 0) {
@@ -183,8 +206,8 @@ export const ListDetailView: React.FC<ListDetailViewProps> = ({ list, onUpdateLi
         return sum;
       }, 0);
     }
-    // Если нет подсписков, используем старую логику
-    return item.actual_purchase_price || (item.price * ((item.purchasedQuantity || 0) / item.quantity));
+    // Если нет подсписков, используем флаг товара
+    return item.isBought ? item.price : 0;
   };
 
   // Считаем фактически куплено (по подсписком или по purchased_quantity)
@@ -397,7 +420,7 @@ export const ListDetailView: React.FC<ListDetailViewProps> = ({ list, onUpdateLi
                 <ItemRow 
                   key={item.id} 
                   item={item} 
-                  onToggle={() => toggleItem(item.id)} 
+                  onToggle={() => toggleItem(item.id, item)} 
                   onDelete={() => deleteItem(item.id)}
                   onEditPrice={() => editItemPrice(item.id)}
                   onEdit={() => editItem(item)}
@@ -431,7 +454,7 @@ export const ListDetailView: React.FC<ListDetailViewProps> = ({ list, onUpdateLi
               <ItemRow 
                 key={item.id} 
                 item={item} 
-                onToggle={() => toggleItem(item.id)} 
+                onToggle={() => toggleItem(item.id, item)} 
                 onDelete={() => deleteItem(item.id)}
                 onEditPrice={() => editItemPrice(item.id)}
                 onEdit={() => editItem(item)}
@@ -484,6 +507,7 @@ const ItemRow: React.FC<ItemRowProps> = ({ item, onToggle, onDelete, onEditPrice
 
   // Расчет стоимости товара - только то что куплено
   let itemTotal = 0;
+  let itemTotalFull = 0;  // Полная стоимость товара
   
   // Если есть подсписки, считаем только помеченные как is_purchased
   if (hasPurchases) {
@@ -495,9 +519,15 @@ const ItemRow: React.FC<ItemRowProps> = ({ item, onToggle, onDelete, onEditPrice
       }
       return sum;
     }, 0);
+    // Полная стоимость - сумма всех подсписков
+    itemTotalFull = purchases.reduce((sum, p) => {
+      const purchasePrice = p.price_per_unit ? p.price_per_unit * p.quantity : 0;
+      return sum + purchasePrice;
+    }, 0);
   } else {
-    // Если нет подсписков, считаем по флагу товара
-    itemTotal = item.isBought ? item.price : 0;
+    // Если нет подсписков
+    itemTotalFull = item.price; // Полная стоимость товара
+    itemTotal = item.isBought ? item.price : 0; // То что куплено
   }
 
   return (
@@ -537,8 +567,11 @@ const ItemRow: React.FC<ItemRowProps> = ({ item, onToggle, onDelete, onEditPrice
           className={`flex flex-col items-end px-3 py-1.5 rounded-xl transition-all border ${item.isBought ? 'text-green-700 bg-green-50/50 border-green-100' : 'text-gray-700 bg-gray-50 border-gray-100 hover:border-green-200'}`}
         >
           <span className="text-xs font-black whitespace-nowrap">
-            {itemTotal > 0 ? `${itemTotal.toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ₽` : '0 ₽'}
+            {itemTotalFull > 0 ? `${itemTotalFull.toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ₽` : '0 ₽'}
           </span>
+          {itemTotal !== itemTotalFull && itemTotal > 0 && (
+            <span className="text-[9px] text-green-600 font-bold">куплено: {itemTotal.toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ₽</span>
+          )}
           {!hasPurchases && item.quantity > 1 && (
             <span className="text-[9px] text-gray-500 mt-0.5">
               {item.price.toFixed(2)} ₽ × {item.quantity}
