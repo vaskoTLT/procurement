@@ -36,12 +36,14 @@ export const ListDetailView: React.FC<ListDetailViewProps> = ({ list, onUpdateLi
     if (!newItemName.trim()) return;
     
     try {
-      const parsedPrice = parseFloat(newItemPrice);
+      const pricePerUnit = parseFloat(newItemPrice);
+      const totalPrice = (isNaN(pricePerUnit) ? 0 : pricePerUnit) * newItemQty;
+      
       await apiService.createItem(list.id, {
         name: newItemName.trim(),
         quantity: newItemQty,
         unit: newItemUnit,
-        price: isNaN(parsedPrice) ? 0 : parsedPrice,
+        price: totalPrice,  // общая стоимость = цена за единицу * количество
         isBought: false
       });
 
@@ -104,6 +106,27 @@ export const ListDetailView: React.FC<ListDetailViewProps> = ({ list, onUpdateLi
     } catch (error) {
       console.error('Ошибка при отметке подсписка:', error);
       alert('Не удалось отметить подсписок');
+    }
+  };
+
+  const editPurchasePrice = async (itemId: string, purchaseId: number, currentPrice: number) => {
+    const priceStr = prompt(`Укажите новую цену за 1 единицу:`, currentPrice.toString());
+    if (priceStr === null) return;
+    
+    const price = parseFloat(priceStr || '0');
+    if (isNaN(price)) {
+      alert('Пожалуйста, введите корректное число');
+      return;
+    }
+
+    try {
+      const updatedItem = await apiService.updateItemPurchasePrice(itemId, purchaseId, price);
+      // Reload items for this list
+      const items = await apiService.getItemsForList(list.id);
+      onUpdateList({ ...list, items });
+    } catch (error) {
+      console.error('Ошибка при изменении цены подсписка:', error);
+      alert('Не удалось изменить цену подсписка');
     }
   };
 
@@ -312,7 +335,7 @@ export const ListDetailView: React.FC<ListDetailViewProps> = ({ list, onUpdateLi
               </div>
 
               <div>
-                <label className="text-[10px] font-bold text-gray-400 uppercase ml-1">Цена (всего)</label>
+                <label className="text-[10px] font-bold text-gray-400 uppercase ml-1">Цена за 1 единицу</label>
                 <div className="relative">
                   <input 
                     type="number" 
@@ -323,8 +346,8 @@ export const ListDetailView: React.FC<ListDetailViewProps> = ({ list, onUpdateLi
                   />
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-green-600 font-bold text-sm">₽</span>
                 </div>
-                <p className="text-[10px] text-gray-400 mt-1 ml-1">
-                  Общая стоимость для {newItemQty} {getUnitText(newItemUnit)}
+                <p className="text-[10px] text-gray-500 mt-1 ml-1 font-medium">
+                  Всего: {(parseFloat(newItemPrice) || 0) * newItemQty} ₽ ({newItemQty} × {parseFloat(newItemPrice) || 0})
                 </p>
               </div>
 
@@ -377,7 +400,8 @@ export const ListDetailView: React.FC<ListDetailViewProps> = ({ list, onUpdateLi
                   onToggle={() => toggleItem(item.id)} 
                   onDelete={() => deleteItem(item.id)}
                   onEditPrice={() => editItemPrice(item.id)}
-                  onEdit={() => editItem(item)}                  isExpanded={expandedItemIds.has(item.id)}
+                  onEdit={() => editItem(item)}
+                  isExpanded={expandedItemIds.has(item.id)}
                   onToggleExpand={() => {
                     const newSet = new Set(expandedItemIds);
                     if (newSet.has(item.id)) {
@@ -388,7 +412,9 @@ export const ListDetailView: React.FC<ListDetailViewProps> = ({ list, onUpdateLi
                     setExpandedItemIds(newSet);
                   }}
                   onDeletePurchase={(purchaseId) => deletePurchase(item.id, purchaseId)}
-                  onTogglePurchase={(purchaseId) => togglePurchase(item.id, purchaseId)}                />
+                  onTogglePurchase={(purchaseId) => togglePurchase(item.id, purchaseId)}
+                  onEditPurchasePrice={(purchaseId, price) => editPurchasePrice(item.id, purchaseId, price)}
+                />
               ))
             )}
           </div>
@@ -421,6 +447,7 @@ export const ListDetailView: React.FC<ListDetailViewProps> = ({ list, onUpdateLi
                 }}
                 onDeletePurchase={(purchaseId) => deletePurchase(item.id, purchaseId)}
                 onTogglePurchase={(purchaseId) => togglePurchase(item.id, purchaseId)}
+                onEditPurchasePrice={(purchaseId, price) => editPurchasePrice(item.id, purchaseId, price)}
               />
             ))}
           </div>
@@ -440,9 +467,10 @@ interface ItemRowProps {
   onToggleExpand: () => void;
   onDeletePurchase: (purchaseId: number) => void;
   onTogglePurchase: (purchaseId: number) => void;
+  onEditPurchasePrice: (purchaseId: number, price: number) => void;
 }
 
-const ItemRow: React.FC<ItemRowProps> = ({ item, onToggle, onDelete, onEditPrice, onEdit, isExpanded, onToggleExpand, onDeletePurchase, onTogglePurchase }) => {
+const ItemRow: React.FC<ItemRowProps> = ({ item, onToggle, onDelete, onEditPrice, onEdit, isExpanded, onToggleExpand, onDeletePurchase, onTogglePurchase, onEditPurchasePrice }) => {
   const unitMap: Record<Unit, string> = {
     [Unit.PCS]: 'шт',
     [Unit.KG]: 'кг',
@@ -548,7 +576,8 @@ const ItemRow: React.FC<ItemRowProps> = ({ item, onToggle, onDelete, onEditPrice
                 </p>
               </div>
 
-              <div className={`text-right px-2 py-1 rounded-lg ${purchase.is_purchased ? 'bg-green-200/60' : 'bg-green-100/60'}`}>
+              <div className={`text-right px-2 py-1 rounded-lg cursor-pointer hover:opacity-80 transition-opacity ${purchase.is_purchased ? 'bg-green-200/60' : 'bg-green-100/60'}`}
+                onClick={() => onEditPurchasePrice(purchase.id, purchase.price_per_unit || 0)}>
                 <span className={`text-xs font-bold whitespace-nowrap ${purchase.is_purchased ? 'text-green-800' : 'text-green-700'}`}>
                   {purchase.price_per_unit 
                     ? `${(purchase.quantity * purchase.price_per_unit).toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ₽`

@@ -241,6 +241,59 @@ router.put('/:id/purchases/:purchaseId', async (req, res) => {
   }
 });
 
+// Изменить цену подсписка
+router.put('/:id/purchases/:purchaseId/price', async (req, res) => {
+  try {
+    const itemId = req.params.id;
+    const purchaseId = req.params.purchaseId;
+    const { price_per_unit } = req.body;
+    
+    if (price_per_unit === undefined || price_per_unit === null) {
+      return res.status(400).json({ success: false, message: 'Цена не указана' });
+    }
+    
+    // Обновляем цену подсписка
+    const updateResult = await db.query(
+      `UPDATE item_purchases 
+       SET price_per_unit = $1, 
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = $2
+       RETURNING *`,
+      [price_per_unit, purchaseId]
+    );
+    
+    if (updateResult.rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Подсписок не найден' });
+    }
+    
+    // Возвращаем товар с обновленным подсписком и всеми подсписками
+    const itemResult = await db.query(
+      `SELECT i.*, 
+              (SELECT json_agg(json_build_object(
+                'id', id, 
+                'quantity', quantity, 
+                'price_per_unit', price_per_unit, 
+                'notes', notes, 
+                'purchase_date', purchase_date,
+                'is_purchased', is_purchased,
+                'purchased_at', purchased_at
+              ) ORDER BY purchase_date ASC) 
+       FROM item_purchases 
+       WHERE item_id = i.id) as purchases
+       FROM items i WHERE i.id = $1`,
+      [itemId]
+    );
+    
+    const item = itemResult.rows[0];
+    item.purchases = item.purchases || [];
+    
+    res.json({ success: true, item, purchase: updateResult.rows[0] });
+  } catch (error) {
+    console.error('Error updating purchase price:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
 // Отметить подсписок как купленный/не купленный (toggle)
 router.put('/:id/purchases/:purchaseId/toggle', async (req, res) => {
   try {

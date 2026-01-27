@@ -234,6 +234,15 @@ class ApiService {
     return this.convertApiItem(data.item);
   }
 
+  async updateItemPurchasePrice(itemId: string, purchaseId: number, pricePerUnit: number): Promise<ShoppingItem> {
+    const data = await this.fetch<{ success: boolean; item: any }>(`/items/${itemId}/purchases/${purchaseId}/price`, {
+      method: 'PUT',
+      body: JSON.stringify({ price_per_unit: pricePerUnit }),
+    });
+    
+    return this.convertApiItem(data.item);
+  }
+
   async categorizeItem(itemName: string): Promise<string> {
     const categories: Record<string, string> = {
       молоко: 'Молочные',
