@@ -8,9 +8,30 @@ interface HomeViewProps {
   onDeleteList: (id: string) => void;
 }
 
-// Функция расчета стоимости с учетом количества
+// Функция расчета стоимости в зависимости от наличия подсписков
+const calculateItemSpent = (item: any) => {
+  // Если есть подсписки, считаем по ним: только те что помечены как is_purchased
+  if (item.purchases && item.purchases.length > 0) {
+    return item.purchases.reduce((sum: number, p: any) => {
+      if (p.is_purchased) {
+        return sum + (p.price_per_unit ? p.price_per_unit * p.quantity : 0);
+      }
+      return sum;
+    }, 0);
+  }
+  // Если нет подсписков, используем старую логику
+  return item.isBought ? item.price : 0;
+};
+
 const calculateItemTotal = (item: any) => {
-  return item.price * item.quantity;
+  // Если есть подсписки, считаем полную сумму по ним
+  if (item.purchases && item.purchases.length > 0) {
+    return item.purchases.reduce((sum: number, p: any) => {
+      return sum + (p.price_per_unit ? p.price_per_unit * p.quantity : 0);
+    }, 0);
+  }
+  // Если нет подсписков, цена уже содержит полную сумму
+  return item.price;
 };
 
 export const HomeView: React.FC<HomeViewProps> = ({ lists, onSelectList, onDeleteList }) => {
@@ -32,10 +53,11 @@ export const HomeView: React.FC<HomeViewProps> = ({ lists, onSelectList, onDelet
         const totalItems = list.items.length;
         const boughtItems = list.items.filter(i => i.isBought).length;
         
-        // ИСПРАВЛЕНО: Учитываем количество при расчете суммы
+        // Считаем потрачено с учетом подсписков
         const spentCost = list.items.reduce((sum, item) => 
-          sum + (item.isBought ? calculateItemTotal(item) : 0), 0);
+          sum + calculateItemSpent(item), 0);
         
+        // Считаем полную сумму с учетом подсписков
         const totalEstimated = list.items.reduce((sum, item) => 
           sum + calculateItemTotal(item), 0);
         
