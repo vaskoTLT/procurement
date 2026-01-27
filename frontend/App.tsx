@@ -12,7 +12,8 @@ import {
   Loader2,
   X,
   AlertTriangle,
-  Edit2
+  Edit2,
+  LogOut
 } from 'lucide-react';
 import { apiService } from './services/apiService';
 
@@ -27,27 +28,45 @@ const App: React.FC = () => {
   const [isNewListModalOpen, setIsNewListModalOpen] = useState(false);
   const [newListName, setNewListName] = useState('');
   const [isEditListModalOpen, setIsEditListModalOpen] = useState(false);
+  const [isAuthorized, setIsAuthorized] = useState(false);
+  const [authError, setAuthError] = useState<string | null>(null);
   
   // Deletion state
   const [listIdToDelete, setListIdToDelete] = useState<string | null>(null);
 
-  // Load data from API on mount
+  // Check authorization on mount
   useEffect(() => {
-    const loadLists = async () => {
+    const checkAuthorization = async () => {
       try {
-        console.log('📥 Загружаем списки с API...');
+        console.log('🔐 Проверяем авторизацию...');
+        const authorized = await apiService.checkAuth();
+        
+        if (!authorized) {
+          // Определяем тип ошибки на основе консоли или других признаков
+          const errorMsg = 'Доступ запрещен. Ваш Telegram ID не авторизован.';
+          setAuthError(errorMsg);
+          setIsLoading(false);
+          return;
+        }
+
+        setIsAuthorized(true);
+        setAuthError(null);
+
+        // Загружаем списки после успешной авторизации
         const data = await apiService.getLists();
         console.log('✅ Списки загружены:', data);
         setLists(data);
       } catch (error) {
-        console.error('❌ Ошибка при загрузке списков:', error);
-        setLists([]);
+        console.error('❌ Ошибка авторизации:', error);
+        const errorMsg = error instanceof Error ? error.message : 'Ошибка авторизации';
+        setAuthError(errorMsg);
+        setIsAuthorized(false);
       } finally {
         setIsLoading(false);
       }
     };
 
-    loadLists();
+    checkAuthorization();
 
     if (tg) {
       tg.expand();
@@ -76,7 +95,13 @@ const App: React.FC = () => {
       handleSelectList(newList.id);
     } catch (error) {
       console.error('❌ Ошибка при создании списка:', error);
-      alert('Ошибка при создании списка. Попробуйте еще раз.');
+      const errorMsg = error instanceof Error ? error.message : 'Ошибка при создании списка';
+      if (errorMsg.includes('авторизац') || errorMsg.includes('Telegram')) {
+        setIsAuthorized(false);
+        setAuthError(errorMsg);
+      } else {
+        alert(errorMsg);
+      }
     }
   };
 
@@ -95,7 +120,13 @@ const App: React.FC = () => {
       setListIdToDelete(null);
     } catch (error) {
       console.error('❌ Ошибка при удалении списка:', error);
-      alert('Ошибка при удалении списка. Попробуйте еще раз.');
+      const errorMsg = error instanceof Error ? error.message : 'Ошибка при удалении списка';
+      if (errorMsg.includes('авторизац') || errorMsg.includes('Telegram')) {
+        setIsAuthorized(false);
+        setAuthError(errorMsg);
+      } else {
+        alert(errorMsg);
+      }
     }
   };
 
@@ -121,6 +152,34 @@ const App: React.FC = () => {
     );
   }
 
+  // Показываем экран ошибки авторизации если пользователь не авторизован
+  if (!isAuthorized && authError) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen bg-white px-4">
+        <div className="w-full max-w-md">
+          <div className="flex flex-col items-center text-center mb-8">
+            <div className="w-20 h-20 bg-red-50 text-red-500 rounded-full flex items-center justify-center mb-6">
+              <AlertTriangle className="w-10 h-10" />
+            </div>
+            <h1 className="text-2xl font-bold text-gray-800 mb-4">Доступ запрещен</h1>
+            <p className="text-gray-600 text-base leading-relaxed mb-4">
+              {authError}
+            </p>
+            <p className="text-gray-500 text-sm">
+              Если вы считаете это ошибкой, свяжитесь с администратором приложения.
+            </p>
+          </div>
+          <button
+            onClick={() => window.location.reload()}
+            className="w-full bg-green-600 text-white font-bold py-3 rounded-2xl hover:bg-green-700 transition-colors"
+          >
+            Попробовать снова
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   const listNameBeingDeleted = lists.find(l => l.id === listIdToDelete)?.name;
 
   return (
@@ -140,14 +199,28 @@ const App: React.FC = () => {
             {activeView === 'home' ? 'Мои Списки' : activeView === 'stats' ? 'Статистика' : activeList?.name}
           </h1>
         </div>
-        {activeView === 'list-detail' && activeList && (
-          <button 
-            onClick={() => setIsEditListModalOpen(true)}
+        <div className="flex items-center gap-2">
+          {activeView === 'list-detail' && activeList && (
+            <button 
+              onClick={() => setIsEditListModalOpen(true)}
+              className="p-2 text-white hover:bg-green-700 rounded-full transition-colors"
+            >
+              <Edit2 className="w-5 h-5" />
+            </button>
+          )}
+          <button
+            onClick={() => {
+              if (confirm('Вы уверены что хотите выйти?')) {
+                apiService.logout();
+                window.location.reload();
+              }
+            }}
             className="p-2 text-white hover:bg-green-700 rounded-full transition-colors"
+            title="Выход"
           >
-            <Edit2 className="w-5 h-5" />
+            <LogOut className="w-5 h-5" />
           </button>
-        )}
+        </div>
       </header>
 
       {/* Main Content */}

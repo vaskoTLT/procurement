@@ -5,6 +5,7 @@ const db = require('../models/database');
 // Получить все списки
 router.get('/', async (req, res) => {
   try {
+    const userId = req.user.id;
     const result = await db.query(`
       SELECT l.*, 
              u.username as creator_name,
@@ -14,9 +15,10 @@ router.get('/', async (req, res) => {
       FROM shopping_lists l
       LEFT JOIN users u ON l.created_by = u.id
       LEFT JOIN items i ON l.id = i.list_id
+      WHERE l.created_by = $1
       GROUP BY l.id, u.username
       ORDER BY l.created_at DESC
-    `);
+    `, [userId]);
     res.json({ success: true, lists: result.rows });
   } catch (error) {
     console.error('Error getting lists:', error);
@@ -47,9 +49,10 @@ router.get('/:id', async (req, res) => {
 router.post('/', async (req, res) => {
   try {
     const { name, is_public = true, description = '' } = req.body;
+    const userId = req.user.id;
     const result = await db.query(
       'INSERT INTO shopping_lists (name, is_public, created_by, description) VALUES ($1, $2, $3, $4) RETURNING *',
-      [name, is_public, 1, description]
+      [name, is_public, userId, description]
     );
     res.json({ success: true, list: result.rows[0] });
   } catch (error) {

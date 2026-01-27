@@ -3,17 +3,152 @@ import { ShoppingList, ShoppingItem, Unit, ItemPurchase } from '../types';
 const API_BASE = import.meta.env.VITE_API_URL || '/api';
 
 class ApiService {
+  private telegramId: string | null = null;
+
+  constructor() {
+    // Загружаем telegram_id из localStorage при инициализации
+    this.telegramId = localStorage.getItem('telegramId');
+  }
+
+  /**
+   * Получить telegram_id из Telegram WebApp API
+   */
+  getTelegramData() {
+    const tg = (window as any).Telegram?.WebApp;
+    if (!tg || !tg.initData) {
+      return null;
+    }
+
+    // Парсим initData чтобы получить user объект
+    const initData = new URLSearchParams(tg.initData);
+    const user = initData.get('user');
+    
+    if (!user) {
+      return null;
+    }
+
+    try {
+      const userData = JSON.parse(user);
+      return userData;
+    } catch (error) {
+      console.error('❌ Ошибка при парсинге Telegram данных:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Проверить авторизацию через Telegram ID
+   */
+  async checkAuth(): Promise<boolean> {
+    try {
+      const userData = this.getTelegramData();
+      
+      if (!userData || !userData.id) {
+        console.warn('⚠️ Telegram данные не найдены');
+        console.warn('⚠️ Приложение должно открываться только через Telegram Mini App');
+        return false;
+      }
+
+      const telegramId = userData.id.toString();
+      
+      // Проверяем авторизацию на бэкенде
+      const response = await fetch(`${API_BASE}/auth/check`, {
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Telegram-Id': telegramId,
+          'X-Telegram-WebApp': 'true'
+        }
+      });
+
+      const data = await response.json();
+
+      if (response.ok && data.authorized) {
+        this.telegramId = telegramId;
+        localStorage.setItem('telegramId', telegramId);
+        console.log('✅ Пользователь авторизован. Telegram ID:', telegramId);
+        return true;
+      }
+
+      // Различаем типы ошибок
+      if (data.error === 'UNAUTHORIZED') {
+        console.error('❌ Ошибка: Приложение должно открываться только через Telegram Mini App');
+      } else if (data.error === 'ACCESS_DENIED') {
+        console.error('❌ Доступ запрещен. Ваш Telegram ID не авторизован.');
+      } else {
+        console.error('❌ Ошибка авторизации:', data.message);
+      }
+      
+      return false;
+    } catch (error) {
+      console.error('❌ Ошибка при проверке авторизации:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Получить информацию о текущем пользователе
+   */
+  async getCurrentUser(): Promise<any | null> {
+    try {
+      if (!this.telegramId) {
+        return null;
+      }
+
+      const response = await fetch(`${API_BASE}/auth/me`, {
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Telegram-Id': this.telegramId,
+          'X-Telegram-WebApp': 'true'
+        }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        return data.success ? data.user : null;
+      }
+
+      return null;
+    } catch (error) {
+      console.error('❌ Ошибка при получении информации пользователя:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Выходить из системы (удалить telegram_id)
+   */
+  logout(): void {
+    this.telegramId = null;
+    localStorage.removeItem('telegramId');
+    console.log('👋 Вы вышли из системы');
+  }
+
   private async fetch<T>(endpoint: string, options?: RequestInit): Promise<T> {
+    if (!this.telegramId) {
+      throw new Error('Не авторизован. Требуется telegram_id.');
+    }
+
     const response = await fetch(`${API_BASE}${endpoint}`, {
       ...options,
       headers: {
         'Content-Type': 'application/json',
+        'X-Telegram-Id': this.telegramId,
+        'X-Telegram-WebApp': 'true',
         ...options?.headers,
       },
     });
 
     if (!response.ok) {
-      throw new Error(`API error: ${response.statusText}`);
+      const error = await response.json().catch(() => ({}));
+      if (response.status === 401 || response.status === 403) {
+        this.logout();
+        const errorMsg = error.message || error.error || 'Доступ запрещен';
+        if (errorMsg.includes('Telegram') || error.error === 'UNAUTHORIZED') {
+          throw new Error('Приложение должно открываться только через Telegram Mini App');
+        }
+        throw new Error(errorMsg);
+      }
+      throw new Error(error.message || `API error: ${response.statusText}`);
     }
 
     return response.json();

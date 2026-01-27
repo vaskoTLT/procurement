@@ -1,8 +1,12 @@
 const express = require('express');
 const cors = require('cors');
+const fs = require('fs');
+const path = require('path');
 const db = require('./models/database');
+const authRouter = require('./routes/auth');
 const listsRouter = require('./routes/lists');
 const itemsRouter = require('./routes/items');
+const { authMiddleware } = require('./models/auth');
 
 const app = express();
 const port = process.env.PORT || 3002;
@@ -28,9 +32,12 @@ const corsOptions = {
 app.use(cors(corsOptions));
 app.use(express.json());
 
-// Routes
-app.use('/api/lists', listsRouter);
-app.use('/api/items', itemsRouter);
+// Публичные Auth Routes (без проверки авторизации)
+app.use('/api/auth', authRouter);
+
+// Защищенные Routes (требуют авторизацию)
+app.use('/api/lists', authMiddleware, listsRouter);
+app.use('/api/items', authMiddleware, itemsRouter);
 
 // Health check - for Traefik healthchecks
 app.get('/health', (req, res) => {
@@ -67,10 +74,65 @@ app.get('/api/db-test', async (req, res) => {
   }
 });
 
-// Инициализация базы данных
+// Инициализация базы данных и запуск миграций
 async function initializeDatabase() {
   try {
-    console.log('📊 Проверяем таблицы...');
+    console.log('📊 Инициализация базы данных...');
+    
+    // Проверяем и добавляем поле telegram_id в users если его еще нет
+    try {
+      await db.query(`
+        ALTER TABLE users 
+        ADD COLUMN IF NOT EXISTS telegram_id BIGINT UNIQUE;
+      `);
+      console.log('✅ Поле telegram_id в таблице users готово');
+    } catch (error) {
+      console.log('ℹ️ Поле telegram_id в таблице users уже существует');
+    }
+    
+    // Проверяем есть ли таблица authorized_users
+    const tableCheck = await db.query(`
+      SELECT EXISTS (
+        SELECT 1 FROM information_schema.tables 
+        WHERE table_schema = 'public' AND table_name = 'authorized_users'
+      )
+    `);
+
+    const authorizedUsersExists = tableCheck.rows[0].exists;
+
+    if (!authorizedUsersExists) {
+      console.log('⚡ Таблица authorized_users не найдена. Выполняем миграцию...');
+      
+      // Читаем SQL файл миграции
+      const migrationPath = path.join(__dirname, '../../init-db/05-add-telegram-auth.sql');
+      
+      if (fs.existsSync(migrationPath)) {
+        const migrationSQL = fs.readFileSync(migrationPath, 'utf-8');
+        
+        // Выполняем миграцию
+        await db.query(migrationSQL);
+        console.log('✅ Миграция авторизации выполнена успешно');
+      } else {
+        console.warn('⚠️ Файл миграции не найден:', migrationPath);
+      }
+    } else {
+      console.log('✅ Таблица authorized_users уже существует');
+    }
+    
+    // Проверяем есть ли авторизованные пользователи
+    const usersCheck = await db.query(
+      'SELECT COUNT(*) as count FROM authorized_users WHERE is_active = true'
+    );
+    
+    const authorizedCount = usersCheck.rows[0].count;
+    if (authorizedCount === 0) {
+      console.warn('⚠️ ВНИМАНИЕ: Нет авторизованных пользователей!');
+      console.warn('⚠️ Добавьте первого пользователя используя SQL:');
+      console.warn('⚠️ docker exec -it procurement-db psql -U procurement_user -d procurement_db');
+      console.warn('⚠️ INSERT INTO authorized_users (telegram_id, username) VALUES (your_telegram_id, \'your_name\');');
+    } else {
+      console.log(`✅ Авторизованных пользователей: ${authorizedCount}`);
+    }
     
     // Проверяем существование таблиц
     const tables = await db.query(`
@@ -82,7 +144,8 @@ async function initializeDatabase() {
     
     console.log(`✅ Таблицы в БД: ${tables.rows.map(t => t.table_name).join(', ')}`);
   } catch (error) {
-    console.error('❌ Ошибка проверки БД:', error.message);
+    console.error('❌ Ошибка инициализации БД:', error.message);
+    // Не прерываем работу сервера, он может работать с существующей структурой
   }
 }
 

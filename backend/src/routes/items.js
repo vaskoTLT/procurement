@@ -32,6 +32,7 @@ router.get('/:id', async (req, res) => {
 router.post('/', async (req, res) => {
   try {
     const { list_id, name, quantity = 1, unit = 'pcs', price = 0, category = 'General' } = req.body;
+    const userId = req.user.id;
     
     const item = await ItemModel.create(list_id, {
       name,
@@ -39,7 +40,7 @@ router.post('/', async (req, res) => {
       unit,
       price,
       category
-    }, 1);
+    }, userId);
     
     res.json({ success: true, item });
   } catch (error) {
