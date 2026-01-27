@@ -20,24 +20,28 @@ class ItemModel {
     const qty = Math.ceil(parseFloat(quantity));
     console.log('🔢 Количество:', qty);
     
-    // Создаем автоматические подсписки - по одному на каждую единицу товара
-    // Цена за одну единицу = общая цена / количество
-    const pricePerUnit = qty > 0 ? price / qty : 0;
-    console.log('💰 Цена за единицу:', pricePerUnit);
-    
-    for (let i = 0; i < qty; i++) {
-      console.log(`➕ Создание подсписка ${i + 1}/${qty}...`);
-      try {
-        await db.query(
-          `INSERT INTO item_purchases (item_id, quantity, price_per_unit, notes, purchase_date)
-           VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP)`,
-          [item.id, 1, pricePerUnit, `Часть ${i + 1}`]
-        );
-        console.log(`✅ Подсписок ${i + 1} создан`);
-      } catch (err) {
-        console.error(`❌ Ошибка при создании подсписка ${i + 1}:`, err.message);
-        throw err;
+    // Создаем автоматические подсписки только если количество >= 2
+    // Если только 1 единица, подсписки не нужны
+    if (qty >= 2) {
+      const pricePerUnit = qty > 0 ? price / qty : 0;
+      console.log('💰 Цена за единицу:', pricePerUnit);
+      
+      for (let i = 0; i < qty; i++) {
+        console.log(`➕ Создание подсписка ${i + 1}/${qty}...`);
+        try {
+          await db.query(
+            `INSERT INTO item_purchases (item_id, quantity, price_per_unit, notes, purchase_date)
+             VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP)`,
+            [item.id, 1, pricePerUnit, `Часть ${i + 1}`]
+          );
+          console.log(`✅ Подсписок ${i + 1} создан`);
+        } catch (err) {
+          console.error(`❌ Ошибка при создании подсписка ${i + 1}:`, err.message);
+          throw err;
+        }
       }
+    } else {
+      console.log('ℹ️ Количество = 1, подсписки не требуются');
     }
     
     console.log('🔄 Загружаем подсписки...');
@@ -173,7 +177,6 @@ class ItemModel {
     const item = itemResult.rows[0];
     const oldQty = Math.ceil(parseFloat(item.quantity));
     const newQty = Math.ceil(parseFloat(quantity));
-    const priceDelta = newQty > 0 ? item.price / newQty : 0;
     
     // Обновляем количество товара
     const result = await db.query(
@@ -186,32 +189,56 @@ class ItemModel {
       [quantity, itemId]
     );
     
-    // Синхронизируем подсписки
-    if (newQty > oldQty) {
-      // Нужно добавить подсписки
-      const diff = newQty - oldQty;
-      for (let i = 0; i < diff; i++) {
+    // Синхронизируем подсписки в зависимости от нового количества
+    const priceDelta = newQty > 0 ? item.price / newQty : 0;
+    
+    if (newQty >= 2) {
+      // Нужны подсписки
+      if (oldQty < 2) {
+        // Было < 2, теперь должны быть подсписки - создаем с нуля
+        for (let i = 0; i < newQty; i++) {
+          await db.query(
+            `INSERT INTO item_purchases (item_id, quantity, price_per_unit, notes, purchase_date)
+             VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP)`,
+            [itemId, 1, priceDelta, `Часть ${i + 1}`]
+          );
+        }
+      } else {
+        // Было >= 2, остается >= 2 - синхронизируем количество подсписков
+        if (newQty > oldQty) {
+          // Нужно добавить подсписки
+          const diff = newQty - oldQty;
+          for (let i = 0; i < diff; i++) {
+            await db.query(
+              `INSERT INTO item_purchases (item_id, quantity, price_per_unit, notes, purchase_date)
+               VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP)`,
+              [itemId, 1, priceDelta, `Часть ${oldQty + i + 1}`]
+            );
+          }
+        } else if (newQty < oldQty) {
+          // Нужно удалить лишние подсписки
+          const diff = oldQty - newQty;
+          await db.query(
+            `DELETE FROM item_purchases 
+             WHERE item_id = $1 
+             AND id IN (
+               SELECT id FROM item_purchases 
+               WHERE item_id = $1 
+               ORDER BY purchase_date DESC 
+               LIMIT $2
+             )`,
+            [itemId, diff]
+          );
+        }
+      }
+    } else {
+      // Новое количество < 2, подсписки не нужны - удаляем все
+      if (oldQty >= 2) {
         await db.query(
-          `INSERT INTO item_purchases (item_id, quantity, price_per_unit, notes, purchase_date)
-           VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP)`,
-          [itemId, 1, priceDelta, `Часть ${oldQty + i + 1}`]
+          `DELETE FROM item_purchases WHERE item_id = $1`,
+          [itemId]
         );
       }
-    } else if (newQty < oldQty) {
-      // Нужно удалить лишние подсписки
-      // Удаляем самые новые (последние добавленные)
-      const diff = oldQty - newQty;
-      await db.query(
-        `DELETE FROM item_purchases 
-         WHERE item_id = $1 
-         AND id IN (
-           SELECT id FROM item_purchases 
-           WHERE item_id = $1 
-           ORDER BY purchase_date DESC 
-           LIMIT $2
-         )`,
-        [itemId, diff]
-      );
     }
 
     return result.rows[0];
