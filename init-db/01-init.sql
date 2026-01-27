@@ -50,8 +50,10 @@ CREATE TABLE IF NOT EXISTS item_purchases (
     item_id INTEGER NOT NULL REFERENCES items(id) ON DELETE CASCADE,
     quantity NUMERIC(10,2) NOT NULL,
     price_per_unit NUMERIC(10,2),
+    is_purchased BOOLEAN DEFAULT false,
     purchase_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     notes VARCHAR(255),
+    purchased_at TIMESTAMP,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );

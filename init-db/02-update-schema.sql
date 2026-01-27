@@ -17,11 +17,17 @@ CREATE TABLE IF NOT EXISTS item_purchases (
     item_id INTEGER NOT NULL REFERENCES items(id) ON DELETE CASCADE,
     quantity NUMERIC(10,2) NOT NULL,
     price_per_unit NUMERIC(10,2),
+    is_purchased BOOLEAN DEFAULT false,
     purchase_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     notes VARCHAR(255),
+    purchased_at TIMESTAMP,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+-- Добавляем колонку is_purchased если она не существует (для совместимости)
+ALTER TABLE item_purchases ADD COLUMN IF NOT EXISTS is_purchased BOOLEAN DEFAULT false;
+ALTER TABLE item_purchases ADD COLUMN IF NOT EXISTS purchased_at TIMESTAMP;
 
 -- Создаем индексы если они еще не существуют
 CREATE INDEX IF NOT EXISTS idx_item_purchases_item_id ON item_purchases(item_id);
@@ -45,7 +51,6 @@ BEGIN
     RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
-
 -- Удаляем старый триггер если он существует и создаем новый
 DROP TRIGGER IF EXISTS trigger_recalculate_purchased ON item_purchases;
 CREATE TRIGGER trigger_recalculate_purchased

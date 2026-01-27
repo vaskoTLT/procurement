@@ -234,6 +234,11 @@ class ApiService {
     return this.convertApiItem(data.item);
   }
 
+  // Алиас для удобства
+  async togglePurchase(itemId: string, purchaseId: number): Promise<ShoppingItem> {
+    return this.toggleItemPurchase(itemId, purchaseId);
+  }
+
   async updateItemPurchasePrice(itemId: string, purchaseId: number, pricePerUnit: number): Promise<ShoppingItem> {
     const data = await this.fetch<{ success: boolean; item: any }>(`/items/${itemId}/purchases/${purchaseId}/price`, {
       method: 'PUT',
