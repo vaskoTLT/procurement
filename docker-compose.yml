@@ -5,7 +5,7 @@ services:
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-procurement_db}
       POSTGRES_USER: ${POSTGRES_USER:-procurement_user}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-procurement_password_123}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-Ckfdfhjccbb85}
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./init-db:/docker-entrypoint-initdb.d
@@ -29,7 +29,7 @@ services:
       POSTGRES_PORT: 5432
       POSTGRES_DB: ${POSTGRES_DB:-procurement_db}
       POSTGRES_USER: ${POSTGRES_USER:-procurement_user}
-      DB_PASSWORD: ${DB_PASSWORD:-procurement_password_123}
+      DB_PASSWORD: ${DB_PASSWORD:-Ckfdfhjccbb85}
       NODE_ENV: production
       PORT: 3002
       TRAEFIK_ENABLED: "true"

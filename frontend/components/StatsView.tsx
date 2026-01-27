@@ -18,28 +18,50 @@ interface StatsViewProps {
   lists: ShoppingList[];
 }
 
-// Функция расчета стоимости с учетом количества
+// Функция расчета стоимости с учетом подсписков
 const calculateItemTotal = (item: any) => {
-  return item.price * item.quantity;
+  // Если есть подсписки, считаем полную сумму по ним
+  if (item.purchases && item.purchases.length > 0) {
+    return item.purchases.reduce((sum: number, p: any) => {
+      return sum + (p.price_per_unit ? p.price_per_unit * p.quantity : 0);
+    }, 0);
+  }
+  // Если нет подсписков, цена уже содержит полную сумму
+  return item.price;
+};
+
+const calculateItemSpent = (item: any) => {
+  // Если есть подсписки, считаем только помеченные как is_purchased
+  if (item.purchases && item.purchases.length > 0) {
+    return item.purchases.reduce((sum: number, p: any) => {
+      if (p.is_purchased) {
+        return sum + (p.price_per_unit ? p.price_per_unit * p.quantity : 0);
+      }
+      return sum;
+    }, 0);
+  }
+  // Если нет подсписков, используем флаг товара
+  return item.isBought ? item.price : 0;
 };
 
 export const StatsView: React.FC<StatsViewProps> = ({ lists }) => {
   const chartData = useMemo(() => {
     return lists.map(list => {
-      // ИСПРАВЛЕНО: Учитываем количество при расчете суммы
+      // Считаем потраченное с учетом подсписков
       const spent = list.items
-        .filter(i => i.isBought)
+        .reduce((sum, i) => sum + calculateItemSpent(i), 0);
+      
+      // Считаем оставшееся с учетом подсписков
+      const total = list.items
         .reduce((sum, i) => sum + calculateItemTotal(i), 0);
       
-      const planned = list.items
-        .filter(i => !i.isBought)
-        .reduce((sum, i) => sum + calculateItemTotal(i), 0);
+      const planned = total - spent;
       
       return {
         name: list.name.length > 8 ? list.name.substring(0, 8) + '..' : list.name,
         spent,
         planned,
-        total: spent + planned,
+        total,
         items: list.items.length
       };
     }).filter(d => d.total > 0 || d.items > 0);
@@ -47,18 +69,16 @@ export const StatsView: React.FC<StatsViewProps> = ({ lists }) => {
 
   const totalSpent = useMemo(() => 
     lists.reduce((sum, list) => 
-      sum + list.items
-        .filter(i => i.isBought)
-        .reduce((s, i) => s + calculateItemTotal(i), 0)
+      sum + list.items.reduce((s, i) => s + calculateItemSpent(i), 0)
     , 0)
   , [lists]);
 
   const totalPlanned = useMemo(() => 
-    lists.reduce((sum, list) => 
-      sum + list.items
-        .filter(i => !i.isBought)
-        .reduce((s, i) => s + calculateItemTotal(i), 0)
-    , 0)
+    lists.reduce((sum, list) => {
+      const totalInList = list.items.reduce((s, i) => s + calculateItemTotal(i), 0);
+      const spentInList = list.items.reduce((s, i) => s + calculateItemSpent(i), 0);
+      return sum + (totalInList - spentInList);
+    }, 0)
   , [lists]);
 
   const COLORS = ['#16a34a', '#22c55e', '#4ade80', '#86efac', '#bbf7d0'];

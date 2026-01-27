@@ -482,15 +482,22 @@ const ItemRow: React.FC<ItemRowProps> = ({ item, onToggle, onDelete, onEditPrice
   const purchases = item.purchases || [];
   const hasPurchases = purchases && purchases.length > 0;
 
-  // Расчет общей стоимости товара
-  let itemTotal = item.price * item.quantity;
+  // Расчет стоимости товара - только то что куплено
+  let itemTotal = 0;
   
-  // Если есть подсписки с разными ценами, считаем по ним
-  if (hasPurchases && purchases.some(p => p.price_per_unit)) {
+  // Если есть подсписки, считаем только помеченные как is_purchased
+  if (hasPurchases) {
     itemTotal = purchases.reduce((sum, p) => {
-      const purchasePrice = p.price_per_unit ? p.price_per_unit * p.quantity : 0;
-      return sum + purchasePrice;
+      // Только если помечено как куплено
+      if (p.is_purchased) {
+        const purchasePrice = p.price_per_unit ? p.price_per_unit * p.quantity : 0;
+        return sum + purchasePrice;
+      }
+      return sum;
     }, 0);
+  } else {
+    // Если нет подсписков, считаем по флагу товара
+    itemTotal = item.isBought ? item.price : 0;
   }
 
   return (
