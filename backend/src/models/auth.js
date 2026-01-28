@@ -1,6 +1,7 @@
 const db = require('./database');
 const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
+const { syncOnDemand } = require('./syncUsers');
 
 /**
  * Проверяет что запрос приходит из Telegram WebApp контекста
@@ -90,6 +91,9 @@ const authMiddleware = async (req, res, next) => {
         message: 'Телеграм ID не передан. Требуется авторизация через Telegram.' 
       });
     }
+
+    // Синхронизируем пользователей из supabase перед проверкой авторизации
+    await syncOnDemand();
 
     // Проверяем что пользователь есть в таблице авторизованных
     const authResult = await db.query(

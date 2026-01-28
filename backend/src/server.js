@@ -8,6 +8,7 @@ const telegramRouter = require('./routes/telegram');
 const listsRouter = require('./routes/lists');
 const itemsRouter = require('./routes/items');
 const { authMiddleware } = require('./models/auth');
+const { startPeriodicSync, manualSync } = require('./models/syncUsers');
 
 const app = express();
 const port = process.env.PORT || 3002;
@@ -151,6 +152,21 @@ async function initializeDatabase() {
   }
 }
 
+// API endpoint для ручной синхронизации
+app.post('/api/sync-users', async (req, res) => {
+  try {
+    const result = await manualSync();
+    res.json(result);
+  } catch (error) {
+    console.error('❌ Ошибка ручной синхронизации:', error.message);
+    res.status(500).json({
+      success: false,
+      error: 'SYNC_ERROR',
+      message: 'Ошибка синхронизации пользователей: ' + error.message
+    });
+  }
+});
+
 // Запуск сервера
 async function startServer() {
   try {
@@ -158,16 +174,20 @@ async function startServer() {
     console.log('🔌 Проверяем подключение к PostgreSQL...');
     await db.query('SELECT 1');
     console.log('✅ Подключение к PostgreSQL успешно');
-    
+
     // Инициализируем БД
     await initializeDatabase();
-    
+
+    // Запускаем периодическую синхронизацию пользователей
+    startPeriodicSync();
+
     // Запускаем сервер
     app.listen(port, () => {
       console.log(`🚀 Сервер запущен на порту ${port}`);
       console.log(`📊 Health check: http://localhost:${port}/api/health`);
       console.log(`📊 DB test: http://localhost:${port}/api/db-test`);
       console.log(`📊 Lists API: http://localhost:${port}/api/lists`);
+      console.log(`🔄 Синхронизация пользователей: http://localhost:${port}/api/sync-users`);
     });
   } catch (error) {
     console.error('❌ Не удалось запустить сервер:', error.message);
