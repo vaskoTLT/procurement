@@ -1,2 +1,80 @@
-      supabase-db:
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: procurement-db
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-procurement_db}
+      POSTGRES_USER: ${POSTGRES_USER:-procurement_user}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-Ckfdfhjccbb85}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-db:/docker-entrypoint-initdb.d
+    networks:
+      - procurement-internal
+      - supabase_default  # Добавляем подключение к сети n8n
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-procurement_user} -d ${POSTGRES_DB:-procurement_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+
+  backend:
+    build: ./backend
+    container_name: procurement-backend
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: ${POSTGRES_DB:-procurement_db}
+      POSTGRES_USER: ${POSTGRES_USER:-procurement_user}
+      DB_PASSWORD: ${DB_PASSWORD:-Ckfdfhjccbb85}
+      NODE_ENV: production
+      PORT: 3002
+      TRAEFIK_ENABLED: "true"
+      WAIT_HOSTS: postgres:5432
+      WAIT_TIMEOUT: 60
+    depends_on:
+      postgres:
         condition: service_healthy
+    networks:
+      - procurement-internal
+      - proxy
+    restart: unless-stopped
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.procurement-backend.rule=Host(`${DOMAIN:-procurement.fros-ty.com}`) && PathPrefix(`/api`)"
+      - "traefik.http.routers.procurement-backend.entrypoints=websecure"
+      - "traefik.http.routers.procurement-backend.tls.certresolver=le"
+      - "traefik.http.services.procurement-backend.loadbalancer.server.port=3002"
+      - "traefik.http.middlewares.stripprefix.stripprefix.prefixes=/api"
+      - "traefik.http.routers.procurement-backend.middlewares=stripprefix@docker"
+
+  frontend:
+    build: ./frontend
+    container_name: procurement-frontend
+    environment:
+      VITE_API_URL: /api
+    depends_on:
+      - backend
+    networks:
+      - procurement-internal
+      - proxy
+    restart: unless-stopped
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.procurement-frontend.rule=Host(`${DOMAIN:-procurement.fros-ty.com}`)"
+      - "traefik.http.routers.procurement-frontend.entrypoints=websecure"
+      - "traefik.http.routers.procurement-frontend.tls.certresolver=le"
+      - "traefik.http.services.procurement-frontend.loadbalancer.server.port=80"
+
+networks:
+  procurement-internal:
+    driver: bridge
+  proxy:
+    external: true
+  supabase_default:  # Добавляем определение внешней сети
+    external: true
+
+volumes:
+  postgres_data:
