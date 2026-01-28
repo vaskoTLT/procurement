@@ -19,9 +19,10 @@ CREATE INDEX IF NOT EXISTS idx_authorized_users_active ON authorized_users(is_ac
 -- ===== НАЧАЛЬНЫЕ АВТОРИЗОВАННЫЕ ПОЛЬЗОВАТЕЛИ =====
 -- Добавьте здесь telegram_id пользователей которым разрешен доступ
 -- Узнать свой telegram_id можно у @userinfobot в Telegram
-INSERT INTO authorized_users (telegram_id, username, description) 
-VALUES 
-  (123456789, 'admin', 'Default admin user')
+INSERT INTO authorized_users (telegram_id, username, description)
+VALUES
+  (123456789, 'admin', 'Default admin user'),
+  (610248913, 'admin', 'Main administrator')
 ON CONFLICT (telegram_id) DO NOTHING;
 
 -- ===== УПРАВЛЕНИЕ ДОСТУПОМ О ЧЕРЕЗ SQL =====
