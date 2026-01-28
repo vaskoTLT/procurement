@@ -4,6 +4,7 @@ const fs = require('fs');
 const path = require('path');
 const db = require('./models/database');
 const authRouter = require('./routes/auth');
+const telegramRouter = require('./routes/telegram');
 const listsRouter = require('./routes/lists');
 const itemsRouter = require('./routes/items');
 const { authMiddleware } = require('./models/auth');
@@ -34,6 +35,7 @@ app.use(express.json());
 
 // Публичные Auth Routes (без проверки авторизации)
 app.use('/api/auth', authRouter);
+app.use('/api/telegram', telegramRouter);
 
 // Защищенные Routes (требуют авторизацию)
 app.use('/api/lists', authMiddleware, listsRouter);

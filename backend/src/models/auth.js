@@ -1,4 +1,6 @@
 const db = require('./database');
+const crypto = require('crypto');
+const jwt = require('jsonwebtoken');
 
 /**
  * Проверяет что запрос приходит из Telegram WebApp контекста
@@ -6,11 +8,61 @@ const db = require('./database');
  */
 const isTelegramWebApp = (req) => {
   // Проверяем специальный заголовок который отправляет Telegram
-  const isTg = req.headers['x-telegram-webapp'] || 
+  const isTg = req.headers['x-telegram-webapp'] ||
                req.headers['user-agent']?.includes('Telegram') ||
                req.headers['x-telegram-id'];
-  
+
   return !!isTg;
+};
+
+/**
+ * Валидация подписи initData от Telegram
+ */
+const validateTelegramInitData = (initData, botToken) => {
+  try {
+    const secretKey = crypto.createHash('sha256').update(botToken).digest();
+    const params = new URLSearchParams(initData);
+    const hash = params.get('hash');
+    params.delete('hash');
+
+    // Сортируем параметры
+    const sortedParams = Array.from(params.entries())
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([key, value]) => `${key}=${value}`)
+      .join('\n');
+
+    // Создаем HMAC
+    const hmac = crypto.createHmac('sha256', secretKey)
+      .update(sortedParams)
+      .digest('hex');
+
+    return hmac === hash;
+  } catch (error) {
+    console.error('Ошибка валидации initData:', error);
+    return false;
+  }
+};
+
+/**
+ * Генерация JWT токена для Telegram deep links
+ */
+const generateTelegramToken = (telegramId, secretKey) => {
+  return jwt.sign(
+    { telegramId, exp: Math.floor(Date.now() / 1000) + (60 * 15) }, // 15 минут
+    secretKey
+  );
+};
+
+/**
+ * Проверка JWT токена из deep links
+ */
+const verifyTelegramToken = (token, secretKey) => {
+  try {
+    return jwt.verify(token, secretKey);
+  } catch (error) {
+    console.error('Ошибка проверки токена:', error);
+    return null;
+  }
 };
 
 /**
@@ -90,5 +142,8 @@ const authMiddleware = async (req, res, next) => {
 
 module.exports = {
   authMiddleware,
-  isTelegramWebApp
+  isTelegramWebApp,
+  validateTelegramInitData,
+  generateTelegramToken,
+  verifyTelegramToken
 };
