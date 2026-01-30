@@ -26,6 +26,18 @@ export const ListDetailView: React.FC<ListDetailViewProps> = ({ list, onUpdateLi
   const [isAdding, setIsAdding] = useState(false);
   const [editingItem, setEditingItem] = useState<ShoppingItem | null>(null);
   const [expandedItemIds, setExpandedItemIds] = useState<Set<string>>(new Set());
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<{ presets: any[], products: any[] }>({ presets: [], products: [] });
+  const [isSearching, setIsSearching] = useState(false);
+  const [showProductSearch, setShowProductSearch] = useState(false);
+  const [addMode, setAddMode] = useState<'item' | 'dish'>('item');
+  const [dishProducts, setDishProducts] = useState<{ name: string; quantity: number; unit: Unit; price: number }[]>([]);
+  const [newDishProductName, setNewDishProductName] = useState('');
+  const [newDishProductQty, setNewDishProductQty] = useState(1);
+  const [newDishProductUnit, setNewDishProductUnit] = useState<Unit>(Unit.PCS);
+  const [newDishProductPrice, setNewDishProductPrice] = useState<string>('');
+  const [dishName, setDishName] = useState('');
+  const [dishDescription, setDishDescription] = useState('');
 
   // Расчет общей стоимости с учетом количества
   const calculateItemTotal = (item: ShoppingItem) => {
@@ -249,6 +261,126 @@ export const ListDetailView: React.FC<ListDetailViewProps> = ({ list, onUpdateLi
     return unitMap[unit];
   };
 
+  const handleSearchProducts = async () => {
+    if (!searchQuery.trim() || searchQuery.length < 2) {
+      setSearchResults({ presets: [], products: [] });
+      return;
+    }
+
+    try {
+      setIsSearching(true);
+      const results = await apiService.searchProducts(searchQuery);
+      setSearchResults(results);
+    } catch (error) {
+      console.error('Ошибка при поиске продуктов:', error);
+      alert('Не удалось выполнить поиск. Пожалуйста, попробуйте еще раз.');
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
+  const handleSelectProduct = async (product: any) => {
+    try {
+      if (addMode === 'item') {
+        const pricePerUnit = parseFloat(newItemPrice) || 0;
+        const totalPrice = pricePerUnit * newItemQty;
+
+        await apiService.createItem(list.id, {
+          name: product.name,
+          quantity: newItemQty,
+          unit: product.unit || Unit.PCS,
+          price: totalPrice,
+          isBought: false,
+          category: product.category
+        });
+
+        setNewItemName(product.name);
+      } else {
+        // For dish mode, add to dish products
+        const price = parseFloat(newDishProductPrice) || 0;
+        setDishProducts([...dishProducts, {
+          name: product.name,
+          quantity: newDishProductQty,
+          unit: product.unit || Unit.PCS,
+          price: price
+        }]);
+
+        setNewDishProductName(product.name);
+      }
+
+      setShowProductSearch(false);
+      setSearchQuery('');
+      setSearchResults({ presets: [], products: [] });
+    } catch (error) {
+      console.error('Ошибка при добавлении товара:', error);
+      alert('Не удалось добавить товар. Пожалуйста, попробуйте еще раз.');
+    }
+  };
+
+  const addDishProduct = () => {
+    if (!newDishProductName.trim()) return;
+
+    const price = parseFloat(newDishProductPrice) || 0;
+    setDishProducts([...dishProducts, {
+      name: newDishProductName.trim(),
+      quantity: newDishProductQty,
+      unit: newDishProductUnit,
+      price: price
+    }]);
+
+    setNewDishProductName('');
+    setNewDishProductQty(1);
+    setNewDishProductPrice('');
+  };
+
+  const removeDishProduct = (index: number) => {
+    const updatedProducts = [...dishProducts];
+    updatedProducts.splice(index, 1);
+    setDishProducts(updatedProducts);
+  };
+
+  const createDish = async () => {
+    if (!dishName.trim() || dishProducts.length === 0) {
+      alert('Пожалуйста, укажите название блюда и добавьте хотя бы один продукт');
+      return;
+    }
+
+    try {
+      const dishData = await apiService.createDish(list.id, {
+        name: dishName.trim(),
+        description: dishDescription.trim(),
+        products: dishProducts.map(p => ({
+          name: p.name,
+          quantity: p.quantity,
+          unit: p.unit,
+          price: p.price,
+          category: 'General'
+        }))
+      });
+
+      // Reset dish form
+      setDishName('');
+      setDishDescription('');
+      setDishProducts([]);
+      setAddMode('item');
+      setIsAdding(false);
+
+      // Reload items for this list
+      const items = await apiService.getItemsForList(list.id);
+      onUpdateList({ ...list, items });
+    } catch (error) {
+      console.error('Ошибка при создании блюда:', error);
+      alert('Не удалось создать блюдо. Пожалуйста, попробуйте еще раз.');
+    }
+  };
+
+  // Auto-search when modal opens with query
+  React.useEffect(() => {
+    if (showProductSearch && searchQuery.length >= 2) {
+      handleSearchProducts();
+    }
+  }, [showProductSearch]);
+
   return (
     <div className="space-y-6 pb-20">
       {/* Total Card */}
@@ -294,103 +426,308 @@ export const ListDetailView: React.FC<ListDetailViewProps> = ({ list, onUpdateLi
       {isAdding && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm px-4">
           <div className="w-full max-w-sm bg-white rounded-3xl p-6 shadow-2xl animate-in fade-in zoom-in duration-200">
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-xl font-bold text-gray-800">Что купить?</h2>
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-bold text-gray-800">Добавить в список</h2>
               <button onClick={() => setIsAdding(false)} className="p-2 text-gray-400">
                 <X className="w-6 h-6" />
               </button>
             </div>
-            
-            <div className="space-y-5">
-              <div>
-                <label className="text-[10px] font-bold text-gray-400 uppercase ml-1">Название</label>
-                <input 
-                  autoFocus
-                  type="text" 
-                  placeholder="Напр: Хлеб"
-                  className="w-full text-lg border-b-2 border-green-500 focus:ring-0 outline-none pb-1 text-gray-800 bg-transparent"
-                  value={newItemName}
-                  onChange={(e) => setNewItemName(e.target.value)}
-                />
-              </div>
 
-              <div className="flex items-center gap-3">
-                <div className="flex-[1.5]">
-                  <label className="text-[10px] font-bold text-gray-400 uppercase ml-1">Кол-во</label>
-                  <div className="flex items-center bg-gray-50 rounded-xl border border-gray-100 overflow-hidden">
-                    <button 
-                      onClick={() => setNewItemQty(Math.max(0.1, newItemQty - (newItemUnit === Unit.G || newItemUnit === Unit.ML ? 50 : 1)))}
-                      className="p-2 text-green-600 active:bg-green-100 transition-colors"
+            {/* Mode Selection Tabs */}
+            <div className="flex gap-2 mb-6">
+              <button
+                onClick={() => setAddMode('item')}
+                className={`flex-1 py-2 px-4 rounded-xl font-bold text-sm transition-colors ${
+                  addMode === 'item' ? 'bg-green-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                }`}
+              >
+                Обычный товар
+              </button>
+              <button
+                onClick={() => setAddMode('dish')}
+                className={`flex-1 py-2 px-4 rounded-xl font-bold text-sm transition-colors ${
+                  addMode === 'dish' ? 'bg-green-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                }`}
+              >
+                Блюдо/Категория
+              </button>
+            </div>
+
+            {/* Regular Item Form */}
+            {addMode === 'item' && (
+              <div className="space-y-5">
+                <div>
+                  <label className="text-[10px] font-bold text-gray-400 uppercase ml-1">Название</label>
+                  <div className="flex gap-2">
+                    <input 
+                      autoFocus
+                      type="text" 
+                      placeholder="Напр: Хлеб"
+                      className="flex-1 text-lg border-b-2 border-green-500 focus:ring-0 outline-none pb-1 text-gray-800 bg-transparent"
+                      value={newItemName}
+                      onChange={(e) => setNewItemName(e.target.value)}
+                    />
+                    <button
+                      onClick={() => {
+                        setShowProductSearch(true);
+                        setSearchQuery(newItemName);
+                      }}
+                      className="p-2 text-green-600 hover:bg-green-100 rounded-lg transition-colors"
+                      title="Поиск продуктов"
                     >
-                      <Minus className="w-4 h-4" />
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                      </svg>
                     </button>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <div className="flex-[1.5]">
+                    <label className="text-[10px] font-bold text-gray-400 uppercase ml-1">Кол-во</label>
+                    <div className="flex items-center bg-gray-50 rounded-xl border border-gray-100 overflow-hidden">
+                      <button 
+                        onClick={() => setNewItemQty(Math.max(0.1, newItemQty - (newItemUnit === Unit.G || newItemUnit === Unit.ML ? 50 : 1)))}
+                        className="p-2 text-green-600 active:bg-green-100 transition-colors"
+                      >
+                        <Minus className="w-4 h-4" />
+                      </button>
+                      <input 
+                        type="number" 
+                        className="w-full bg-transparent text-center font-bold outline-none border-none py-2 text-sm [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                        value={newItemQty}
+                        onChange={(e) => setNewItemQty(parseFloat(e.target.value) || 0)}
+                      />
+                      <button 
+                        onClick={() => setNewItemQty(newItemQty + (newItemUnit === Unit.G || newItemUnit === Unit.ML ? 50 : 1))}
+                        className="p-2 text-green-600 active:bg-green-100 transition-colors"
+                      >
+                        <Plus className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                  <div className="flex-[1.2]">
+                    <label className="text-[10px] font-bold text-gray-400 uppercase ml-1">Ед. изм.</label>
+                    <div className="relative">
+                      <select 
+                        className="w-full bg-gray-50 rounded-xl px-4 py-2 font-medium outline-none border border-gray-100 focus:ring-2 focus:ring-green-500 appearance-none text-sm"
+                        value={newItemUnit}
+                        onChange={(e) => setNewItemUnit(e.target.value as Unit)}
+                      >
+                        <option value={Unit.PCS}>шт</option>
+                        <option value={Unit.KG}>кг</option>
+                        <option value={Unit.G}>г</option>
+                        <option value={Unit.L}>л</option>
+                        <option value={Unit.ML}>мл</option>
+                      </select>
+                      <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-green-600 pointer-events-none" />
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-bold text-gray-400 uppercase ml-1">Цена за 1 единицу</label>
+                  <div className="relative">
                     <input 
                       type="number" 
-                      className="w-full bg-transparent text-center font-bold outline-none border-none py-2 text-sm [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                      value={newItemQty}
-                      onChange={(e) => setNewItemQty(parseFloat(e.target.value) || 0)}
+                      placeholder="0"
+                      className="w-full bg-gray-50 rounded-xl pl-9 pr-4 py-2 font-bold outline-none border border-gray-100 focus:ring-2 focus:ring-green-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                      value={newItemPrice}
+                      onChange={(e) => setNewItemPrice(e.target.value)}
                     />
-                    <button 
-                      onClick={() => setNewItemQty(newItemQty + (newItemUnit === Unit.G || newItemUnit === Unit.ML ? 50 : 1))}
-                      className="p-2 text-green-600 active:bg-green-100 transition-colors"
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-green-600 font-bold text-sm">₽</span>
+                  </div>
+                  <p className="text-[10px] text-gray-500 mt-1 ml-1 font-medium">
+                    Всего: {(parseFloat(newItemPrice) || 0) * newItemQty} ₽ ({newItemQty} × {parseFloat(newItemPrice) || 0})
+                  </p>
+                </div>
+
+                <div className="flex gap-3 pt-4">
+                  <button 
+                    onClick={() => setIsAdding(false)}
+                    className="flex-1 bg-gray-100 text-gray-600 font-bold py-4 rounded-2xl transition-colors text-sm"
+                  >
+                    Отмена
+                  </button>
+                  <button 
+                    disabled={!newItemName.trim()}
+                    onClick={addItem}
+                    className="flex-[2] bg-green-600 text-white font-bold py-4 rounded-2xl shadow-lg hover:bg-green-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2 text-sm"
+                  >
+                    <Check className="w-5 h-5" />
+                    Добавить товар
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Dish Form */}
+            {addMode === 'dish' && (
+              <div className="space-y-5">
+                <div>
+                  <label className="text-[10px] font-bold text-gray-400 uppercase ml-1">Название блюда/категории</label>
+                  <input 
+                    autoFocus
+                    type="text" 
+                    placeholder="Напр: Завтрак или Омлет с овощами"
+                    className="w-full text-lg border-b-2 border-green-500 focus:ring-0 outline-none pb-1 text-gray-800 bg-transparent"
+                    value={dishName}
+                    onChange={(e) => setDishName(e.target.value)}
+                  />
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-bold text-gray-400 uppercase ml-1">Описание (необязательно)</label>
+                  <input 
+                    type="text" 
+                    placeholder="Напр: Завтрак на двоих"
+                    className="w-full text-sm border-b-2 border-green-500 focus:ring-0 outline-none pb-1 text-gray-600 bg-transparent"
+                    value={dishDescription}
+                    onChange={(e) => setDishDescription(e.target.value)}
+                  />
+                </div>
+
+                <div className="space-y-4">
+                  <h4 className="text-sm font-bold text-gray-800 flex items-center gap-2">
+                    <span>Продукты в блюде</span>
+                    <span className="bg-green-100 text-green-700 text-xs font-bold px-2 py-1 rounded-full">
+                      {dishProducts.length}
+                    </span>
+                  </h4>
+
+                  {dishProducts.length > 0 && (
+                    <div className="space-y-3 max-h-40 overflow-y-auto">
+                      {dishProducts.map((product, index) => (
+                        <div key={index} className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl">
+                          <div className="flex-1">
+                            <p className="font-semibold text-sm">{product.name}</p>
+                            <p className="text-xs text-gray-500">
+                              {product.quantity} {getUnitText(product.unit)} • {product.price} ₽
+                            </p>
+                          </div>
+                          <button
+                            onClick={() => removeDishProduct(index)}
+                            className="p-1 text-red-400 hover:text-red-600 transition-colors"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  <div className="space-y-3 pt-4">
+                    <div>
+                      <label className="text-[10px] font-bold text-gray-400 uppercase ml-1">Название продукта</label>
+                      <div className="flex gap-2">
+                        <input 
+                          type="text" 
+                          placeholder="Напр: Яйца"
+                          className="flex-1 text-sm border-b-2 border-green-500 focus:ring-0 outline-none pb-1 text-gray-800 bg-transparent"
+                          value={newDishProductName}
+                          onChange={(e) => setNewDishProductName(e.target.value)}
+                        />
+                        <button
+                          onClick={() => {
+                            setShowProductSearch(true);
+                            setSearchQuery(newDishProductName);
+                          }}
+                          className="p-2 text-green-600 hover:bg-green-100 rounded-lg transition-colors"
+                          title="Поиск продуктов"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                          </svg>
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                      <div className="flex-[1.5]">
+                        <label className="text-[10px] font-bold text-gray-400 uppercase ml-1">Кол-во</label>
+                        <div className="flex items-center bg-gray-50 rounded-xl border border-gray-100 overflow-hidden">
+                          <button 
+                            onClick={() => setNewDishProductQty(Math.max(0.1, newDishProductQty - (newDishProductUnit === Unit.G || newDishProductUnit === Unit.ML ? 50 : 1)))}
+                            className="p-2 text-green-600 active:bg-green-100 transition-colors"
+                          >
+                            <Minus className="w-4 h-4" />
+                          </button>
+                          <input 
+                            type="number" 
+                            className="w-full bg-transparent text-center font-bold outline-none border-none py-2 text-sm [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                            value={newDishProductQty}
+                            onChange={(e) => setNewDishProductQty(parseFloat(e.target.value) || 0)}
+                          />
+                          <button 
+                            onClick={() => setNewDishProductQty(newDishProductQty + (newDishProductUnit === Unit.G || newDishProductUnit === Unit.ML ? 50 : 1))}
+                            className="p-2 text-green-600 active:bg-green-100 transition-colors"
+                          >
+                            <Plus className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                      <div className="flex-[1.2]">
+                        <label className="text-[10px] font-bold text-gray-400 uppercase ml-1">Ед. изм.</label>
+                        <div className="relative">
+                          <select 
+                            className="w-full bg-gray-50 rounded-xl px-3 py-2 font-medium outline-none border border-gray-100 focus:ring-2 focus:ring-green-500 appearance-none text-sm"
+                            value={newDishProductUnit}
+                            onChange={(e) => setNewDishProductUnit(e.target.value as Unit)}
+                          >
+                            <option value={Unit.PCS}>шт</option>
+                            <option value={Unit.KG}>кг</option>
+                            <option value={Unit.G}>г</option>
+                            <option value={Unit.L}>л</option>
+                            <option value={Unit.ML}>мл</option>
+                          </select>
+                          <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-green-600 pointer-events-none" />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="text-[10px] font-bold text-gray-400 uppercase ml-1">Цена за 1 единицу</label>
+                      <div className="relative">
+                        <input 
+                          type="number" 
+                          placeholder="0"
+                          className="w-full bg-gray-50 rounded-xl pl-9 pr-4 py-2 font-bold outline-none border border-gray-100 focus:ring-2 focus:ring-green-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                          value={newDishProductPrice}
+                          onChange={(e) => setNewDishProductPrice(e.target.value)}
+                        />
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-green-600 font-bold text-sm">₽</span>
+                      </div>
+                    </div>
+
+                    <button
+                      onClick={addDishProduct}
+                      disabled={!newDishProductName.trim()}
+                      className="w-full bg-green-100 text-green-700 font-bold py-3 rounded-xl hover:bg-green-200 transition-colors text-sm flex items-center justify-center gap-2"
                     >
-                      <Plus className="w-4 h-4" />
+                      <Plus className="w-5 h-5" />
+                      Добавить продукт в блюдо
                     </button>
                   </div>
                 </div>
-                <div className="flex-[1.2]">
-                  <label className="text-[10px] font-bold text-gray-400 uppercase ml-1">Ед. изм.</label>
-                  <div className="relative">
-                    <select 
-                      className="w-full bg-gray-50 rounded-xl px-4 py-2 font-medium outline-none border border-gray-100 focus:ring-2 focus:ring-green-500 appearance-none text-sm"
-                      value={newItemUnit}
-                      onChange={(e) => setNewItemUnit(e.target.value as Unit)}
-                    >
-                      <option value={Unit.PCS}>шт</option>
-                      <option value={Unit.KG}>кг</option>
-                      <option value={Unit.G}>г</option>
-                      <option value={Unit.L}>л</option>
-                      <option value={Unit.ML}>мл</option>
-                    </select>
-                    <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-green-600 pointer-events-none" />
-                  </div>
+
+                <div className="flex gap-3 pt-4">
+                  <button 
+                    onClick={() => setIsAdding(false)}
+                    className="flex-1 bg-gray-100 text-gray-600 font-bold py-4 rounded-2xl transition-colors text-sm"
+                  >
+                    Отмена
+                  </button>
+                  <button 
+                    disabled={!dishName.trim() || dishProducts.length === 0}
+                    onClick={createDish}
+                    className="flex-[2] bg-green-600 text-white font-bold py-4 rounded-2xl shadow-lg hover:bg-green-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2 text-sm"
+                  >
+                    <Check className="w-5 h-5" />
+                    Создать блюдо
+                  </button>
                 </div>
               </div>
-
-              <div>
-                <label className="text-[10px] font-bold text-gray-400 uppercase ml-1">Цена за 1 единицу</label>
-                <div className="relative">
-                  <input 
-                    type="number" 
-                    placeholder="0"
-                    className="w-full bg-gray-50 rounded-xl pl-9 pr-4 py-2 font-bold outline-none border border-gray-100 focus:ring-2 focus:ring-green-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                    value={newItemPrice}
-                    onChange={(e) => setNewItemPrice(e.target.value)}
-                  />
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-green-600 font-bold text-sm">₽</span>
-                </div>
-                <p className="text-[10px] text-gray-500 mt-1 ml-1 font-medium">
-                  Всего: {(parseFloat(newItemPrice) || 0) * newItemQty} ₽ ({newItemQty} × {parseFloat(newItemPrice) || 0})
-                </p>
-              </div>
-
-              <div className="flex gap-3 pt-4">
-                <button 
-                  onClick={() => setIsAdding(false)}
-                  className="flex-1 bg-gray-100 text-gray-600 font-bold py-4 rounded-2xl transition-colors text-sm"
-                >
-                  Отмена
-                </button>
-                <button 
-                  disabled={!newItemName.trim()}
-                  onClick={addItem}
-                  className="flex-[2] bg-green-600 text-white font-bold py-4 rounded-2xl shadow-lg hover:bg-green-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2 text-sm"
-                >
-                  <Check className="w-5 h-5" />
-                  Добавить
-                </button>
-              </div>
-            </div>
+            )}
           </div>
         </div>
       )}
@@ -402,6 +739,116 @@ export const ListDetailView: React.FC<ListDetailViewProps> = ({ list, onUpdateLi
           onClose={() => setEditingItem(null)}
           onUpdate={handleItemUpdated}
         />
+      )}
+
+      {/* Product Search Modal */}
+      {showProductSearch && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/60 backdrop-blur-sm px-4">
+          <div className="w-full max-w-sm bg-white rounded-3xl p-6 shadow-2xl animate-in fade-in zoom-in duration-200">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-xl font-bold text-gray-800">Поиск продуктов</h2>
+              <button onClick={() => setShowProductSearch(false)} className="p-2 text-gray-400">
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+
+            <div className="mb-4">
+              <div className="relative">
+                <input
+                  autoFocus
+                  type="text"
+                  placeholder="Введите название продукта..."
+                  className="w-full bg-gray-50 rounded-xl pl-10 pr-4 py-3 font-medium outline-none border border-gray-100 focus:ring-2 focus:ring-green-500 text-sm"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleSearchProducts()}
+                />
+                <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                  </svg>
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-4 max-h-80 overflow-y-auto">
+              {isSearching ? (
+                <div className="flex justify-center py-8">
+                  <div className="w-8 h-8 border-2 border-green-500 border-t-transparent rounded-full animate-spin"></div>
+                </div>
+              ) : searchResults.products.length === 0 && searchResults.presets.length === 0 && searchQuery.length >= 2 ? (
+                <div className="text-center py-8 text-gray-400">
+                  <p className="text-sm">Ничего не найдено</p>
+                  <p className="text-xs mt-1">Попробуйте другой запрос</p>
+                </div>
+              ) : (
+                <>
+                  {searchResults.products.map((product) => (
+                    <button
+                      key={`product-${product.id}`}
+                      onClick={() => handleSelectProduct(product)}
+                      className="w-full p-3 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors flex items-center gap-3"
+                    >
+                      <div className="w-8 h-8 bg-green-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                        <span className="text-green-600 font-bold text-sm">{product.name.charAt(0).toUpperCase()}</span>
+                      </div>
+                      <div className="flex-1 text-left">
+                        <p className="font-semibold text-gray-800 text-sm">{product.name}</p>
+                        <p className="text-xs text-gray-500">
+                          {product.category} • {product.unit || 'шт'}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <Plus className="w-5 h-5 text-green-600" />
+                      </div>
+                    </button>
+                  ))}
+
+                  {searchResults.presets.map((preset) => (
+                    <button
+                      key={`preset-${preset.id}`}
+                      onClick={() => handleSelectProduct(preset)}
+                      className="w-full p-3 bg-green-50 rounded-xl hover:bg-green-100 transition-colors flex items-center gap-3"
+                    >
+                      <div className="w-8 h-8 bg-green-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                        {preset.icon ? (
+                          <span className="text-green-600">{preset.icon}</span>
+                        ) : (
+                          <span className="text-green-600 font-bold text-sm">{preset.name.charAt(0).toUpperCase()}</span>
+                        )}
+                      </div>
+                      <div className="flex-1 text-left">
+                        <p className="font-semibold text-green-700 text-sm">{preset.name}</p>
+                        <p className="text-xs text-green-600">
+                          Набор • {preset.product_count || 'несколько'} продуктов
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <Plus className="w-5 h-5 text-green-600" />
+                      </div>
+                    </button>
+                  ))}
+                </>
+              )}
+            </div>
+
+            <div className="mt-6 flex gap-3">
+              <button
+                onClick={() => setShowProductSearch(false)}
+                className="flex-1 bg-gray-100 text-gray-600 font-bold py-3 rounded-2xl transition-colors text-sm"
+              >
+                Отмена
+              </button>
+              <button
+                onClick={handleSearchProducts}
+                disabled={searchQuery.length < 2}
+                className="flex-1 bg-green-600 text-white font-bold py-3 rounded-2xl shadow-lg hover:bg-green-700 transition-colors disabled:opacity-50 text-sm"
+              >
+                Поиск
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Sections */}

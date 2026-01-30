@@ -20,6 +20,8 @@ interface StatsViewProps {
 
 // Функция расчета стоимости с учетом подсписков
 const calculateItemTotal = (item: any) => {
+  if (!item) return 0;
+
   // Если есть подсписки, считаем полную сумму по ним
   if (item.purchases && item.purchases.length > 0) {
     return item.purchases.reduce((sum: number, p: any) => {
@@ -27,10 +29,12 @@ const calculateItemTotal = (item: any) => {
     }, 0);
   }
   // Если нет подсписков, цена уже содержит полную сумму
-  return item.price;
+  return item.price || 0;
 };
 
 const calculateItemSpent = (item: any) => {
+  if (!item) return 0;
+
   // Если есть подсписки, считаем только помеченные как is_purchased
   if (item.purchases && item.purchases.length > 0) {
     return item.purchases.reduce((sum: number, p: any) => {
@@ -41,7 +45,7 @@ const calculateItemSpent = (item: any) => {
     }, 0);
   }
   // Если нет подсписков, используем флаг товара
-  return item.isBought ? item.price : 0;
+  return item.isBought ? (item.price || 0) : 0;
 };
 
 export const StatsView: React.FC<StatsViewProps> = ({ lists }) => {
