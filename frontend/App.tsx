@@ -196,7 +196,7 @@ const App: React.FC = () => {
             </button>
           )}
           <h1 className="text-xl font-bold text-white">
-            {activeView === 'home' ? 'Мои Списки' : activeView === 'stats' ? 'Статистика' : activeList?.name}
+            {activeView === 'home' ? 'Списки' : activeView === 'stats' ? 'Статистика' : activeList?.name}
           </h1>
         </div>
         <div className="flex items-center gap-2">

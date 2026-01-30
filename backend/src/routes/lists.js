@@ -2,22 +2,30 @@ const express = require('express');
 const router = express.Router();
 const db = require('../models/database');
 
-// Получить все списки
+// Получить все списки (созданные пользователем + общие)
 router.get('/', async (req, res) => {
   try {
     const userId = req.user.id;
     const result = await db.query(`
-      SELECT l.*, 
+      SELECT l.*,
              u.username as creator_name,
              COUNT(i.id) as item_count,
              SUM(CASE WHEN i.is_bought THEN 1 ELSE 0 END) as bought_count,
-             COALESCE(SUM(CASE WHEN i.is_bought THEN i.price ELSE 0 END), 0) as total_spent
+             COALESCE(SUM(CASE WHEN i.is_bought THEN i.price ELSE 0 END), 0) as total_spent,
+             CASE
+               WHEN l.created_by = $1 THEN true
+               ELSE false
+             END as is_owner
       FROM shopping_lists l
       LEFT JOIN users u ON l.created_by = u.id
       LEFT JOIN items i ON l.id = i.list_id
       WHERE l.created_by = $1
+         OR l.id IN (SELECT list_id FROM list_participants WHERE user_id = $1)
+         OR l.is_public = true
       GROUP BY l.id, u.username
-      ORDER BY l.created_at DESC
+      ORDER BY
+        CASE WHEN l.created_by = $1 THEN 0 ELSE 1 END,  -- Сначала списки пользователя
+        l.created_at DESC
     `, [userId]);
     res.json({ success: true, lists: result.rows });
   } catch (error) {

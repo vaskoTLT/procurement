@@ -46,6 +46,7 @@ export interface ShoppingList {
   created_by?: number;
   created_at?: string;
   updated_at?: string;
+  is_owner?: boolean;
 }
 
 // Вспомогательный тип для подпунктов

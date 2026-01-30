@@ -164,6 +164,7 @@ class ApiService {
       created_by: apiList.created_by,
       created_at: apiList.created_at,
       updated_at: apiList.updated_at,
+      is_owner: apiList.is_owner,
       items: []
     };
   }
