@@ -49,6 +49,34 @@ export interface ShoppingList {
   is_owner?: boolean;
 }
 
+export interface ProductPreset {
+  id: number;
+  name: string;
+  icon?: string;
+  is_dish: boolean;
+  product_count?: number;
+}
+
+export interface PresetProduct {
+  id: number;
+  name: string;
+  unit: Unit;
+  default_quantity: number;
+  category?: string;
+}
+
+export interface IndividualProduct {
+  id: number;
+  name: string;
+  unit: Unit;
+  category?: string;
+}
+
+export interface DishItem extends ShoppingItem {
+  products?: ShoppingItem[];
+  total_price?: number;
+}
+
 // Вспомогательный тип для подпунктов
 export interface SubItem {
   index: number;          // Номер подпункта (1, 2, 3...)

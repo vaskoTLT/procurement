@@ -1,0 +1,208 @@
+{
+  "categories": [
+    {
+      "name": "Бургер",
+      "icon": "🍔",
+      "products": [
+        {
+          "name": "Фарш",
+          "unit": "kg",
+          "default_quantity": 0.5,
+          "category": "Мясо"
+        },
+        {
+          "name": "Булка для бургера",
+          "unit": "pcs",
+          "default_quantity": 1,
+          "category": "Хлеб"
+        },
+        {
+          "name": "Салат",
+          "unit": "pcs",
+          "default_quantity": 1,
+          "category": "Овощи"
+        },
+        {
+          "name": "Сыр",
+          "unit": "g",
+          "default_quantity": 50,
+          "category": "Молочные"
+        },
+        {
+          "name": "Кетчуп",
+          "unit": "ml",
+          "default_quantity": 20,
+          "category": "Соусы"
+        }
+      ]
+    },
+    {
+      "name": "Пицца",
+      "icon": "🍕",
+      "products": [
+        {
+          "name": "Тесто для пиццы",
+          "unit": "pcs",
+          "default_quantity": 1,
+          "category": "Хлеб"
+        },
+        {
+          "name": "Сыр моцарелла",
+          "unit": "g",
+          "default_quantity": 100,
+          "category": "Молочные"
+        },
+        {
+          "name": "Помидоры",
+          "unit": "pcs",
+          "default_quantity": 2,
+          "category": "Овощи"
+        },
+        {
+          "name": "Колбаса",
+          "unit": "g",
+          "default_quantity": 80,
+          "category": "Мясо"
+        },
+        {
+          "name": "Соусы",
+          "unit": "ml",
+          "default_quantity": 30,
+          "category": "Соусы"
+        }
+      ]
+    },
+    {
+      "name": "Салат",
+      "icon": "🥗",
+      "products": [
+        {
+          "name": "Огурцы",
+          "unit": "pcs",
+          "default_quantity": 2,
+          "category": "Овощи"
+        },
+        {
+          "name": "Помидоры",
+          "unit": "pcs",
+          "default_quantity": 2,
+          "category": "Овощи"
+        },
+        {
+          "name": "Салат листовой",
+          "unit": "g",
+          "default_quantity": 50,
+          "category": "Овощи"
+        },
+        {
+          "name": "Масло оливковое",
+          "unit": "ml",
+          "default_quantity": 15,
+          "category": "Масла"
+        }
+      ]
+    },
+    {
+      "name": "Завтрак",
+      "icon": "☕",
+      "products": [
+        {
+          "name": "Хлеб",
+          "unit": "pcs",
+          "default_quantity": 2,
+          "category": "Хлеб"
+        },
+        {
+          "name": "Масло сливочное",
+          "unit": "g",
+          "default_quantity": 20,
+          "category": "Молочные"
+        },
+        {
+          "name": "Яйца",
+          "unit": "pcs",
+          "default_quantity": 2,
+          "category": "Яйца"
+        },
+        {
+          "name": "Кофе",
+          "unit": "g",
+          "default_quantity": 10,
+          "category": "Напитки"
+        }
+      ]
+    }
+  ],
+  "individual_products": [
+    {
+      "name": "Молоко",
+      "unit": "l",
+      "category": "Молочные"
+    },
+    {
+      "name": "Яйца",
+      "unit": "pcs",
+      "category": "Яйца"
+    },
+    {
+      "name": "Хлеб",
+      "unit": "pcs",
+      "category": "Хлеб"
+    },
+    {
+      "name": "Вода",
+      "unit": "l",
+      "category": "Напитки"
+    },
+    {
+      "name": "Сыр",
+      "unit": "kg",
+      "category": "Молочные"
+    },
+    {
+      "name": "Мясо",
+      "unit": "kg",
+      "category": "Мясо"
+    },
+    {
+      "name": "Рыба",
+      "unit": "kg",
+      "category": "Рыба"
+    },
+    {
+      "name": "Курица",
+      "unit": "kg",
+      "category": "Мясо"
+    },
+    {
+      "name": "Овощи",
+      "unit": "kg",
+      "category": "Овощи"
+    },
+    {
+      "name": "Фрукты",
+      "unit": "kg",
+      "category": "Фрукты"
+    },
+    {
+      "name": "Мыло",
+      "unit": "pcs",
+      "category": "Гигиена"
+    },
+    {
+      "name": "Порошок",
+      "unit": "kg",
+      "category": "Бытовая химия"
+    },
+    {
+      "name": "Шампунь",
+      "unit": "ml",
+      "category": "Гигиена"
+    },
+    {
+      "name": "Зубная паста",
+      "unit": "pcs",
+      "category": "Гигиена"
+    }
+  ]
+}

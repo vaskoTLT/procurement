@@ -384,6 +384,111 @@ class ApiService {
     return this.convertApiItem(data.item);
   }
 
+  // ===== МЕТОДЫ ДЛЯ РАБОТЫ С ПРЕДУСТАНОВЛЕННЫМИ ПРОДУКТАМИ =====
+
+  async getProductPresets(): Promise<ProductPreset[]> {
+    try {
+      const data = await this.fetch<{ success: boolean; presets: any[] }>('/product-presets/presets');
+      return data.success ? data.presets : [];
+    } catch (error) {
+      console.error('Error getting product presets:', error);
+      return [];
+    }
+  }
+
+  async getPresetProducts(presetId: number): Promise<{ preset: ProductPreset; products: PresetProduct[] }> {
+    try {
+      const data = await this.fetch<{ success: boolean; preset: any; products: any[] }>(`/product-presets/presets/${presetId}/products`);
+      return data.success ? {
+        preset: data.preset,
+        products: data.products
+      } : { preset: {} as ProductPreset, products: [] };
+    } catch (error) {
+      console.error(`Error getting preset products for ${presetId}:`, error);
+      return { preset: {} as ProductPreset, products: [] };
+    }
+  }
+
+  async getIndividualProducts(search: string = '', category: string = ''): Promise<IndividualProduct[]> {
+    try {
+      const params = new URLSearchParams();
+      if (search) params.append('search', search);
+      if (category) params.append('category', category);
+
+      const data = await this.fetch<{ success: boolean; products: any[] }>(`/product-presets/products?${params.toString()}`);
+      return data.success ? data.products : [];
+    } catch (error) {
+      console.error('Error getting individual products:', error);
+      return [];
+    }
+  }
+
+  async searchProducts(query: string): Promise<{ presets: ProductPreset[]; products: IndividualProduct[] }> {
+    try {
+      const data = await this.fetch<{ success: boolean; presets: any[]; products: any[] }>(`/product-presets/search?q=${encodeURIComponent(query)}`);
+      return data.success ? {
+        presets: data.presets,
+        products: data.products
+      } : { presets: [], products: [] };
+    } catch (error) {
+      console.error('Error searching products:', error);
+      return { presets: [], products: [] };
+    }
+  }
+
+  // ===== МЕТОДЫ ДЛЯ РАБОТЫ С БЛЮДАМИ =====
+
+  async createDish(listId: string, dishData: { name: string; description?: string; products: Array<{ name: string; quantity: number; unit: Unit; price?: number; category?: string }> }): Promise<DishItem> {
+    try {
+      const data = await this.fetch<{ success: boolean; dish: any }>('/dishes', {
+        method: 'POST',
+        body: JSON.stringify({
+          list_id: parseInt(listId),
+          ...dishData
+        }),
+      });
+
+      if (!data.success) {
+        throw new Error('Failed to create dish');
+      }
+
+      return this.convertApiDish(data.dish);
+    } catch (error) {
+      console.error('Error creating dish:', error);
+      throw error;
+    }
+  }
+
+  async getDish(dishId: string): Promise<DishItem> {
+    try {
+      const data = await this.fetch<{ success: boolean; dish: any }>(`/dishes/${dishId}`);
+      return data.success ? this.convertApiDish(data.dish) : {} as DishItem;
+    } catch (error) {
+      console.error(`Error getting dish ${dishId}:`, error);
+      return {} as DishItem;
+    }
+  }
+
+  async isDish(itemId: string): Promise<boolean> {
+    try {
+      const data = await this.fetch<{ success: boolean; is_dish: boolean }>(`/dishes/${itemId}/check`);
+      return data.success ? data.is_dish : false;
+    } catch (error) {
+      console.error(`Error checking if item ${itemId} is dish:`, error);
+      return false;
+    }
+  }
+
+  private convertApiDish(apiDish: any): DishItem {
+    const baseItem = this.convertApiItem(apiDish);
+
+    return {
+      ...baseItem,
+      products: apiDish.products ? apiDish.products.map(this.convertApiItem.bind(this)) : [],
+      total_price: apiDish.total_price ? parseFloat(apiDish.total_price) : undefined
+    };
+  }
+
   async categorizeItem(itemName: string): Promise<string> {
     const categories: Record<string, string> = {
       молоко: 'Молочные',

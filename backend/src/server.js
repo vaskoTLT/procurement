@@ -7,6 +7,8 @@ const authRouter = require('./routes/auth');
 const telegramRouter = require('./routes/telegram');
 const listsRouter = require('./routes/lists');
 const itemsRouter = require('./routes/items');
+const productPresetsRouter = require('./routes/productPresets');
+const dishesRouter = require('./routes/dishes');
 const { authMiddleware } = require('./models/auth');
 const { startPeriodicSync, manualSync } = require('./models/syncUsers');
 
@@ -41,6 +43,8 @@ app.use('/api/telegram', telegramRouter);
 // Защищенные Routes (требуют авторизацию)
 app.use('/api/lists', authMiddleware, listsRouter);
 app.use('/api/items', authMiddleware, itemsRouter);
+app.use('/api/product-presets', authMiddleware, productPresetsRouter);
+app.use('/api/dishes', authMiddleware, dishesRouter);
 
 // Health check - for Traefik healthchecks
 app.get('/health', (req, res) => {
@@ -137,6 +141,35 @@ async function initializeDatabase() {
       console.log(`✅ Авторизованных пользователей: ${authorizedCount}`);
     }
     
+    // Проверяем существование таблицы dish_products
+    const dishProductsCheck = await db.query(`
+      SELECT EXISTS (
+        SELECT 1 FROM information_schema.tables 
+        WHERE table_schema = 'public' AND table_name = 'dish_products'
+      )
+    `);
+
+    const dishProductsExists = dishProductsCheck.rows[0].exists;
+
+    if (!dishProductsExists) {
+      console.log('⚡ Таблица dish_products не найдена. Выполняем миграцию...');
+      
+      // Читаем SQL файл миграции
+      const dishProductsMigrationPath = path.join(__dirname, '../../init-db/06-add-dish-products.sql');
+      
+      if (fs.existsSync(dishProductsMigrationPath)) {
+        const migrationSQL = fs.readFileSync(dishProductsMigrationPath, 'utf-8');
+        
+        // Выполняем миграцию
+        await db.query(migrationSQL);
+        console.log('✅ Миграция dish_products выполнена успешно');
+      } else {
+        console.warn('⚠️ Файл миграции dish_products не найден:', dishProductsMigrationPath);
+      }
+    } else {
+      console.log('✅ Таблица dish_products уже существует');
+    }
+
     // Проверяем существование таблиц
     const tables = await db.query(`
       SELECT table_name 
